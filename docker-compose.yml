@@ -1,0 +1,40 @@
+services:
+  backend:
+    build: ./backend
+    ports:
+      - "8080:8080"
+    #    volumes:
+    #      - ./backend/src:/usr/local/tomcat/webapps/ROOT/WEB-INF/classes
+    #      - ./backend/src/main/webapp:/usr/local/tomcat/webapps/ROOT
+    depends_on:
+      - db
+    env_file:
+      - .env
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    ports:
+      - "80:80"
+    #    volumes:
+    #      - ./frontend:/usr/share/nginx/html
+    depends_on:
+      - backend
+
+  db:
+    image: mysql:8
+    env_file:
+      - .env
+    volumes:
+      - db_data:/var/lib/mysql
+      - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
+    ports:
+      - "3306:3306"
+
+volumes:
+  db_data:
+
+networks:
+  app-network:
+    driver: bridge

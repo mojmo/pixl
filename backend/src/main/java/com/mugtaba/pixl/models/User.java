@@ -1,18 +1,21 @@
 package com.mugtaba.pixl.models;
 
-import java.util.Date;
+import java.time.LocalDateTime;
 
 public class User {
     private int id;
     private String username;
-    private String password;
-    private String createdAt;
+    private String email;
+    private String passwordHash;
+    private LocalDateTime createdAt;
+    private LocalDateTime updatedAt;
 
-    public User(int id, String username, String password) {
-        this.id = id;
+    public User(String username, String email, String passwordHash) {
         this.username = username;
-        this.password = password;
-        this.createdAt = new Date().toString();
+        this.email = email;
+        this.passwordHash = passwordHash;
+        this.createdAt = LocalDateTime.now();
+        this.updatedAt = LocalDateTime.now();
     }
 
     public int getId() {
@@ -23,11 +26,15 @@ public class User {
         return username;
     }
 
-    public String getPassword() {
-        return password;
+    public String getEmail() { return email; }
+
+    public String getPasswordHash() {
+        return passwordHash;
     }
 
-    public String getCreatedAt() {
+    public LocalDateTime getCreatedAt() {
         return createdAt;
     }
+
+    public LocalDateTime getUpdatedAt() { return updatedAt; }
 }

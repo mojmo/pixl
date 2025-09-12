@@ -10,12 +10,13 @@ public class User {
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
-    public User(String username, String email, String passwordHash) {
+    public User(int id, String username, String email, String passwordHash, LocalDateTime createdAt, LocalDateTime updatedAt) {
+        this.id = id;
         this.username = username;
         this.email = email;
         this.passwordHash = passwordHash;
-        this.createdAt = LocalDateTime.now();
-        this.updatedAt = LocalDateTime.now();
+        this.createdAt = createdAt;
+        this.updatedAt = updatedAt;
     }
 
     public int getId() {

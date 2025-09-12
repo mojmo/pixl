@@ -147,4 +147,42 @@ public class AuthServlet extends HttpServlet {
         response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
         JsonUtil.writeJsonResponse(response, new ApiResponse<>(false, "An internal server error occurred"));
     }
+
+    /**
+     * Handles HTTP GET requests for logout functionality.
+     * Invalidates the current user session.
+     *
+     * @param request  the HttpServletRequest object
+     * @param response the HttpServletResponse object
+     * @throws IOException if an input or output error occurs
+     */
+    @Override
+    protected void doGet(HttpServletRequest request, HttpServletResponse response) throws IOException {
+        String pathInfo = request.getPathInfo();
+
+        if ("/logout".equals(pathInfo)) {
+            handleLogout(request, response);
+        } else {
+            response.setStatus(HttpServletResponse.SC_NOT_FOUND);
+            JsonUtil.writeJsonResponse(response, new ApiResponse<>(false, "Endpoint not found"));
+        }
+    }
+
+    /**
+     * Handles user logout requests.
+     * Invalidates the current session and clears authentication data.
+     *
+     * @param request  the HttpServletRequest object
+     * @param response the HttpServletResponse object
+     * @throws IOException if an error occurs during response writing
+     */
+    private void handleLogout(HttpServletRequest request, HttpServletResponse response) throws IOException {
+        HttpSession session = request.getSession(false);
+
+        if (session != null) {
+            session.invalidate();
+        }
+
+        JsonUtil.writeJsonResponse(response, new ApiResponse<>(true,"Logged out successfully", null));
+    }
 }

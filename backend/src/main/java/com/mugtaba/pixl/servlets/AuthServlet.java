@@ -74,8 +74,10 @@ public class AuthServlet extends HttpServlet {
 
         try {
             if (userService.registerUser(username, email, password)) {
+                response.setStatus(HttpServletResponse.SC_CREATED);
                 JsonUtil.writeJsonResponse(response, new ApiResponse<>(true, "User registered successfully", null));
             } else {
+                response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
                 JsonUtil.writeJsonResponse(response, new ApiResponse<>(false, "Registration failed"));
             }
         } catch (IllegalArgumentException e) {

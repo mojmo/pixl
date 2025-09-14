@@ -127,7 +127,7 @@ public class AuthServlet extends HttpServlet {
                 JsonUtil.writeJsonResponse(response, new ApiResponse<>(true, "Logged in successfully", user));
             } else {
                 response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
-                JsonUtil.writeJsonResponse(response, new ApiResponse<>(false, "'Invalid credentials"));
+                JsonUtil.writeJsonResponse(response, new ApiResponse<>(false, "Invalid credentials"));
             }
         } catch (IllegalArgumentException e) {
             response.setStatus(HttpServletResponse.SC_BAD_REQUEST);

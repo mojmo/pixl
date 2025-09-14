@@ -24,6 +24,11 @@ CREATE TABLE IF NOT EXISTS artworks (
     FOREIGN KEY (user_id) REFERENCES users(id)
 );
 
+-- replace `password` with your own
+CREATE USER 'pixl_user'@'%' IDENTIFIED BY 'password';
+
+FLUSH PRIVILEGES;
+
 -- Only grant privileges if the user already exists (don't try to create user)
 GRANT ALL PRIVILEGES ON pixl.* TO 'pixl_user'@'%';
 

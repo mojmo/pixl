@@ -1,6 +1,8 @@
 package com.mugtaba.pixl.util;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 
@@ -10,7 +12,24 @@ import java.io.IOException;
  * to HTTP servlet responses. Uses Jackson ObjectMapper for JSON processing.
  */
 public class JsonUtil {
-    private static final ObjectMapper objectMapper = new ObjectMapper();
+    private static final ObjectMapper objectMapper = createObjectMapper();
+
+    /**
+     * Creates and configures an ObjectMapper with Java 8 date/time support.
+     *
+     * @return configured ObjectMapper instance
+     */
+    private static ObjectMapper createObjectMapper() {
+        ObjectMapper mapper = new ObjectMapper();
+
+        // Register Java 8 date/time module
+        mapper.registerModule(new JavaTimeModule());
+
+        // configure data formatting
+        mapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+
+        return mapper;
+    }
 
     /**
      * Writes a Java object as JSON to the HTTP servlet response.

@@ -34,7 +34,7 @@ public class UserService {
         }
 
         String salt = PasswordUtil.generateSalt();
-        String hashedPassword = PasswordUtil.hashedPassword(password, salt);
+        String hashedPassword = PasswordUtil.hashPassword(password, salt);
 
         String sql = "INSERT INTO users (username, email, password_hash, salt) VALUES (?, ?, ?, ?)";
 
@@ -74,7 +74,7 @@ public class UserService {
             throw new IllegalArgumentException("Password cannot be null or empty");
         }
 
-        String sql = "SELECT id, username, email, password_hash, salt FROM users WHERE username = ?";
+        String sql = "SELECT * FROM users WHERE LOWER(TRIM(username))=LOWER(?)";
 
         try (Connection conn = DatabaseUtil.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
@@ -86,14 +86,14 @@ public class UserService {
                 String storedHash = rs.getString("password_hash");
                 String salt = rs.getString("salt");
 
-                if (PasswordUtil.verifyPassword(storedHash, password, salt)) {
+                if (PasswordUtil.verifyPassword(password, storedHash, salt)) {
                     return new User(
                             rs.getInt("id"),
                             rs.getString("username"),
                             rs.getString("email"),
                             storedHash,
-                            rs.getTimestamp("createdAt").toLocalDateTime(),
-                            rs.getTimestamp("updatedAt").toLocalDateTime()
+                            rs.getTimestamp("created_at").toLocalDateTime(),
+                            rs.getTimestamp("updated_at").toLocalDateTime()
                     );
                 }
             }

@@ -21,7 +21,7 @@ public class PasswordUtil {
      * @return Base64 encoded string representation of the hashed password
      * @throws RuntimeException if the SHA-256 algorithm is not available
      */
-    public static String hashedPassword(String password, String salt) {
+    public static String hashPassword(String password, String salt) {
         try {
             MessageDigest md = MessageDigest.getInstance("SHA-256");
             md.update(salt.getBytes());
@@ -57,6 +57,6 @@ public class PasswordUtil {
      * @return true if the password matches the hash, false otherwise
      */
     public static boolean verifyPassword(String password, String hashedPassword, String salt) {
-        return hashedPassword(password, salt).equals(hashedPassword);
+        return hashPassword(password, salt).equals(hashedPassword);
     }
 }

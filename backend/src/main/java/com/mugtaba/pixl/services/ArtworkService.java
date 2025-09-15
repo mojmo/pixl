@@ -137,6 +137,29 @@ public class ArtworkService {
     }
 
     /**
+     * Retrieves all the artworks from the database
+     *
+     * @return a List of all Artwork objects, empty list if none found or error occurs
+     */
+    public List<Artwork> getAllArtworks() {
+        List<Artwork> artworks = new ArrayList<>();
+        String sql = "SELECT * FROM artworks ORDER BY created_at DESC";
+
+        try (Connection conn = DatabaseUtil.getConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(sql)) {
+
+            while (rs.next()) {
+                artworks.add(mapResultSetToArtwork(rs));
+            }
+        } catch (SQLException e) {
+            System.err.println("Error retrieving all artworks: " + e.getMessage());
+        }
+
+        return artworks;
+    }
+
+    /**
      * Helper method to map ResultSet row to an Artwork object.
      *
      * @param rs the ResultSet containing artwork data

@@ -106,6 +106,37 @@ public class ArtworkService {
     }
 
     /**
+     * Retrieves all artworks created by specific user.
+     *
+     * @param userId the unique identifier of the user
+     * @return a list of artwork objects created by the user, empty list if none found or error occurs
+     * @throws IllegalArgumentException if the userId is not a positive integer
+     */
+    public List<Artwork> getArtworksByUserId(int userId) {
+        if (userId <= 0) {
+            throw new IllegalArgumentException("User ID must be a positive number");
+        }
+
+        List<Artwork> artworks = new ArrayList<>();
+        String sql = "SELECT * FROM artworks WHERE user_id = ? ORDER BY created_at DESC";
+
+        try (Connection conn = DatabaseUtil.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setInt(1, userId);
+            ResultSet rs = stmt.executeQuery();
+
+            while (rs.next()) {
+                artworks.add(mapResultSetToArtwork(rs));
+            }
+        } catch (SQLException e) {
+            System.err.println("Error retrieving user artworks: " + e.getMessage());
+        }
+
+        return artworks;
+    }
+
+    /**
      * Helper method to map ResultSet row to an Artwork object.
      *
      * @param rs the ResultSet containing artwork data

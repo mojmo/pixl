@@ -160,6 +160,41 @@ public class ArtworkService {
     }
 
     /**
+     * Update an existing artwork record in the database
+     *
+     * @param artwork the Artwork object with updated values. Must have a valid ID.
+     * @return true if the artwork was successfully updated, false otherwise
+     * @throws IllegalArgumentException if the artwork is null or has an invalid ID
+     */
+    public boolean updateArtwork(Artwork artwork) {
+        if (artwork == null) {
+            throw new IllegalArgumentException("Artwork cannot be null");
+        }
+        if (artwork.getId() <= 0) {
+            throw new IllegalArgumentException("Artwork ID must be a positive integer");
+        }
+
+        String sql = "UPDATE artworks SET title = ?, pixels = ?, width = ?, height = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?";
+
+        try (Connection conn = DatabaseUtil.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setString(1, artwork.getTitle());
+            stmt.setString(2, artwork.getPixels());
+            stmt.setInt(3, artwork.getWidth());
+            stmt.setInt(4, artwork.getHeight());
+            stmt.setInt(5, artwork.getId());
+
+            int affectedRows = stmt.executeUpdate();
+            return affectedRows > 0;
+
+        } catch (SQLException e) {
+            System.err.println("Error updating artwork: " + e.getMessage());
+            return false;
+        }
+    }
+
+    /**
      * Helper method to map ResultSet row to an Artwork object.
      *
      * @param rs the ResultSet containing artwork data

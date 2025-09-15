@@ -195,6 +195,32 @@ public class ArtworkService {
     }
 
     /**
+     * Deletes an artwork from the database.
+     * @param id the unique identifier of the artwork to delete
+     * @return true if the artwork was successfully deleted, false otherwise
+     * @throws IllegalArgumentException if the id was not a positive integer
+     */
+    public boolean deleteArtwork(int id) {
+        if (id <= 0) {
+            throw new IllegalArgumentException("Artwork ID must be a positive number");
+        }
+
+        String sql = "DELETE FROM artworks WHERE id = ?";
+
+        try (Connection conn = DatabaseUtil.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setInt(1, id);
+            int affectedRows = stmt.executeUpdate();
+            return affectedRows > 0;
+
+        } catch (SQLException e) {
+            System.err.println("Error deleting artwork: " + e.getMessage());
+            return false;
+        }
+    }
+
+    /**
      * Helper method to map ResultSet row to an Artwork object.
      *
      * @param rs the ResultSet containing artwork data

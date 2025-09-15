@@ -118,7 +118,7 @@ public class ArtworkService {
         }
 
         List<Artwork> artworks = new ArrayList<>();
-        String sql = "SELECT * FROM artworks WHERE user_id = ? ORDER BY created_at DESC";
+        String sql = "SELECT * FROM artworks WHERE user_id = ? ORDER BY updated_at DESC";
 
         try (Connection conn = DatabaseUtil.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {

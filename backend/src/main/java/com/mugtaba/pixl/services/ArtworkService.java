@@ -74,4 +74,60 @@ public class ArtworkService {
             return false;
         }
     }
+
+    /**
+     * Retrieves an artwork by its unique identifier.
+     *
+     * @param id the unique identifier of the artwork to retrieve
+     * @return the artwork object if found, null if not found or if an error occurs
+     * @throws IllegalArgumentException if the id is not a positive integer
+     */
+    public Artwork getArtworkById(int id) {
+        if (id <= 0) {
+            throw new IllegalArgumentException("Artwork ID must be a positive number");
+        }
+
+        String sql = "SELECT * FROM artworks WHERE id = ?";
+
+        try (Connection conn = DatabaseUtil.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setInt(1, id);
+            ResultSet rs = stmt.executeQuery();
+
+            if (rs.next()) {
+                return mapResultSetToArtwork(rs);
+            }
+        } catch (SQLException e) {
+            System.err.println("Error getting artwork by ID: " + e.getMessage());
+        }
+
+        return null;
+    }
+
+    /**
+     * Helper method to map ResultSet row to an Artwork object.
+     *
+     * @param rs the ResultSet containing artwork data
+     * @return an Artwork object with data from Resultset
+     * @throws SQLException if a database access error occurs
+     */
+    private Artwork mapResultSetToArtwork(ResultSet rs) throws SQLException {
+        Artwork artwork = new Artwork();
+
+        artwork.setId(rs.getInt("id"));
+        artwork.setUserId(rs.getInt("user_id"));
+        artwork.setTitle(rs.getString("title"));
+        artwork.setPixels(rs.getString("pixels"));
+        artwork.setWidth(rs.getInt("width"));
+        artwork.setHeight(rs.getInt("height"));
+        artwork.setCreatedAt(rs.getTimestamp("created_at").toLocalDateTime());
+
+        Timestamp updatedAt = rs.getTimestamp("updated_at");
+        if (updatedAt != null) {
+            artwork.setUpdatedAt(updatedAt.toLocalDateTime());
+        }
+
+        return artwork;
+    }
 }

@@ -3,6 +3,7 @@ package com.mugtaba.pixl.util;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 
@@ -54,6 +55,23 @@ public class JsonUtil {
 
         // Serialize the Java object to JSON and write to response output stream
         objectMapper.writeValue(response.getWriter(), data);
+    }
+
+    /**
+     * Parses a JSON request body into a Java object
+     *
+     * @param request the HttpServletRequest containing JSON data
+     * @param tClass the class of the object to parse
+     * @return the parsed object, or null if parsing fails
+     * @param <T> the type of the object to parse
+     */
+    public static <T> T parseJsonRequest(HttpServletRequest request, Class<T> tClass) {
+        try {
+            return objectMapper.readValue(request.getReader(), tClass);
+        } catch (IOException e) {
+            System.err.println("Error parsing JSON request: " + e.getMessage());
+            return null;
+        }
     }
 
     /**

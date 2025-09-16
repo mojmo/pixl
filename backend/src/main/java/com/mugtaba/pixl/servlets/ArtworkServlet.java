@@ -255,4 +255,67 @@ public class ArtworkServlet extends HttpServlet {
             JsonUtil.writeJsonResponse(response, new ApiResponse<>(false, "Internal server error: " + e.getMessage()));
         }
     }
+
+    /**
+     * Handles HTTP DELETE requests for deleting artworks.
+     * Deletes an artwork if the authenticated user owns it.
+     *
+     * @param request  the HttpServletRequest object
+     * @param response the HttpServletResponse object
+     * @throws IOException if an input or output error occurs
+     */
+    @Override
+    protected void doDelete(HttpServletRequest request, HttpServletResponse response) throws IOException {
+        try {
+            HttpSession session = request.getSession(false);
+            if (session == null || session.getAttribute("userId") == null) {
+                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                JsonUtil.writeJsonResponse(response, new ApiResponse<>(false, "Not authenticated"));
+                return;
+            }
+
+            int userId = (Integer) session.getAttribute("userId");
+            String pathInfo = request.getPathInfo();
+
+            if (pathInfo == null || pathInfo.equals("/")) {
+                response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+                JsonUtil.writeJsonResponse(response, new ApiResponse<>(false, "Artwork ID is required"));
+                return;
+            }
+
+            try {
+                int artworkId = Integer.parseInt(pathInfo.substring(1));
+
+                // Check if the artwork exists and belongs to the user
+                Artwork artwork = artworkService.getArtworkById(artworkId);
+                if (artwork == null) {
+                    response.setStatus(HttpServletResponse.SC_NOT_FOUND);
+                    JsonUtil.writeJsonResponse(response, new ApiResponse<>(false, "Artwork not found"));
+                    return;
+                }
+
+                if (artwork.getUserId() != userId) {
+                    response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                    JsonUtil.writeJsonResponse(response, new ApiResponse<>(false, "Access denied"));
+                    return;
+                }
+
+                // Delete the artwork
+                boolean deleted = artworkService.deleteArtwork(artworkId);
+                if (deleted) {
+                    response.setStatus(HttpServletResponse.SC_OK);
+                    JsonUtil.writeJsonResponse(response, new ApiResponse<>(true, "Artwork deleted successfully", null));
+                } else {
+                    response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+                    JsonUtil.writeJsonResponse(response, new ApiResponse<>(false, "Failed to delete artwork"));
+                }
+            } catch (NumberFormatException e) {
+                response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+                JsonUtil.writeJsonResponse(response, new ApiResponse<>(false, "Invalid Artwork ID format"));
+            }
+        } catch (Exception e) {
+            response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+            JsonUtil.writeJsonResponse(response, new ApiResponse<>(false, "Internal server error: " + e.getMessage()));
+        }
+    }
 }

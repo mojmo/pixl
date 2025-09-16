@@ -88,4 +88,73 @@ public class ArtworkServlet extends HttpServlet {
         }
 
     }
+
+    /**
+     * Handles HTTP POST requests for creating new artworks.
+     * Creates a new artwork for the authenticated user.
+     *
+     * @param request the HttpServletRequest object containing artwork data
+     * @param response the HttpServletResponse object
+     * @throws IOException if an input or output error occurs
+     */
+    @Override
+    protected void doPost(HttpServletRequest request, HttpServletResponse response) throws IOException {
+        try {
+            HttpSession session = request.getSession(false);
+            if (session == null || session.getAttribute("userId") == null) {
+                response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
+                JsonUtil.writeJsonResponse(response, new ApiResponse<>(false, "Not authenticated"));
+                return;
+            }
+
+            int userId = (Integer) session.getAttribute("userId");
+
+            // Parse JSON request body to Artwork object
+            Artwork artwork = JsonUtil.parseJsonRequest(request, Artwork.class);
+            if (artwork == null) {
+                response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+                JsonUtil.writeJsonResponse(response, new ApiResponse<>(false, "Invalid artwork data"));
+                return;
+            }
+
+            // Set the user ID from session
+            artwork.setUserId(userId);
+
+            // Validate required fields
+            if (artwork.getTitle() == null || artwork.getTitle().trim().isEmpty()) {
+                response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+                JsonUtil.writeJsonResponse(response, new ApiResponse<>(false, "Title is required"));
+                return;
+            }
+
+            if (artwork.getPixels() == null || artwork.getPixels().trim().isEmpty()) {
+                response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+                JsonUtil.writeJsonResponse(response, new ApiResponse<>(false, "Pixel data is required"));
+                return;
+            }
+
+            if (artwork.getWidth() <= 0 || artwork.getHeight() <= 0) {
+                response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+                JsonUtil.writeJsonResponse(response, new ApiResponse<>(false, "Width and height must be positive integers"));
+                return;
+            }
+
+            // Create the artwork
+            boolean created = artworkService.createArtwork(artwork);
+
+            if (created) {
+                response.setStatus(HttpServletResponse.SC_CREATED);
+                JsonUtil.writeJsonResponse(response, new ApiResponse<>(true, "Artwork created successfully", artwork));
+            } else {
+                response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+                JsonUtil.writeJsonResponse(response, new ApiResponse<>(false, "Failed to create artwork"));
+            }
+        } catch (IllegalArgumentException e) {
+            response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
+            JsonUtil.writeJsonResponse(response, new ApiResponse<>(false, e.getMessage()));
+        } catch (Exception e) {
+            response.setStatus(HttpServletResponse.SC_INTERNAL_SERVER_ERROR);
+            JsonUtil.writeJsonResponse(response, new ApiResponse<>(false, "Internal server error: " + e.getMessage()));
+        }
+    }
 }

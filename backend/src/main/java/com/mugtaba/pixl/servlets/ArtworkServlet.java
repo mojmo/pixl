@@ -24,7 +24,7 @@ import java.util.List;
  *  </ul>
  * </p>
  */
-@WebServlet("/api/artworks/*")
+@WebServlet("/artworks/*")
 public class ArtworkServlet extends HttpServlet {
     private final ArtworkService artworkService = new ArtworkService();
 

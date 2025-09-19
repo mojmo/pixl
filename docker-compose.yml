@@ -3,9 +3,8 @@ services:
     build: ./backend
     ports:
       - "8080:8080"
-    #    volumes:
-    #      - ./backend/src:/usr/local/tomcat/webapps/ROOT/WEB-INF/classes
-    #      - ./backend/src/main/webapp:/usr/local/tomcat/webapps/ROOT
+    volumes:
+      - ./backend/target/ROOT.war:/usr/local/tomcat/webapps/ROOT.war
     depends_on:
       - db
     env_file:
@@ -17,8 +16,8 @@ services:
       dockerfile: frontend/Dockerfile
     ports:
       - "80:80"
-    #    volumes:
-    #      - ./frontend:/usr/share/nginx/html
+    volumes:
+      - ./frontend:/usr/share/nginx/html
     depends_on:
       - backend
 

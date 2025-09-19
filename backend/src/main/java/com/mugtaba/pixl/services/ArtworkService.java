@@ -60,9 +60,7 @@ public class ArtworkService {
                 try (ResultSet generatedKeys = stmt.getGeneratedKeys()) {
                     if (generatedKeys.next()) {
                         artwork.setId(generatedKeys.getInt(1));
-                        artwork.setCreatedAt(generatedKeys.getTimestamp("created_at").toLocalDateTime());
-                        artwork.setUpdatedAt(generatedKeys.getTimestamp("updated_at").toLocalDateTime());
-                        return true;
+                        return fetchCompleteArtwork(artwork);
                     }
                 }
             }
@@ -186,12 +184,16 @@ public class ArtworkService {
             stmt.setInt(5, artwork.getId());
 
             int affectedRows = stmt.executeUpdate();
-            return affectedRows > 0;
+
+            if (affectedRows > 0) {
+                return fetchCompleteArtwork(artwork);
+            }
 
         } catch (SQLException e) {
             System.err.println("Error updating artwork: " + e.getMessage());
             return false;
         }
+        return false;
     }
 
     /**
@@ -218,6 +220,37 @@ public class ArtworkService {
             System.err.println("Error deleting artwork: " + e.getMessage());
             return false;
         }
+    }
+
+    /**
+     * Fetches the complete artwork record including timestamps and updates the artwork object.
+     *
+     * @param artwork the artwork object with at least the ID set
+     * @return true if the artwork was successfully retrieved, false otherwise
+     */
+    private boolean fetchCompleteArtwork(Artwork artwork) {
+        String sql = "SELECT created_at, updated_at FROM artworks WHERE id = ?";
+
+        try (Connection conn = DatabaseUtil.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setInt(1,artwork.getId());
+            ResultSet rs = stmt.executeQuery();
+
+            if (rs.next()) {
+                artwork.setCreatedAt(rs.getTimestamp("created_at").toLocalDateTime());
+
+                Timestamp updatedAt = rs.getTimestamp("updated_at");
+                if (updatedAt != null) {
+                    artwork.setUpdatedAt(updatedAt.toLocalDateTime());
+                }
+
+                return true;
+            }
+        } catch (SQLException e) {
+            System.err.println("Error fetching complete artwork: " + e.getMessage());
+        }
+
+        return false;
     }
 
     /**

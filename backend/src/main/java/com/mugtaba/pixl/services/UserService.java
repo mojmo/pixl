@@ -3,13 +3,37 @@ package com.mugtaba.pixl.services;
 import com.mugtaba.pixl.models.User;
 import com.mugtaba.pixl.util.DatabaseUtil;
 import com.mugtaba.pixl.util.PasswordUtil;
+
 import java.sql.*;
+import java.time.LocalDateTime;
+import java.util.Optional;
 
 /**
  * Service class for user-related operations including registration and authentication.
  * Handles database interactions for user management with secure password handling.
  */
 public class UserService {
+
+    private static final String INSERT_USER =
+    "INSERT INTO users (username, email, password_hash, salt, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)";
+
+    private static final String SELECT_USER_BY_ID = "SELECT * FROM users WHERE id = ?";
+
+    private static final String SELECT_USER_BY_USERNAME = "SELECT * FROM users WHERE username = ?";
+
+    private static final String SELECT_USER_BY_USERNAME_OR_EMAIL = "SELECT * FROM users WHERE username = ? OR email = ?";
+
+    private static final String UPDATE_USER_PASSWORD = "UPDATE users SET password_hash = ?, salt = ?, updated_at = ? WHERE id = ?";
+
+    private static final String UPDATE_USER_PROFILE = "UPDATE users SET username = ?, email = ?, updated_at = ? WHERE id = ?";
+
+    private static final String CHECK_USERNAME_EXISTS = "SELECT COUNT(*) FROM users WHERE username = ?";
+
+    private static final String CHECK_EMAIL_EXISTS = "SELECT COUNT(*) FROM users WHERE email = ?";
+
+    private static final String CHECK_USERNAME_TAKEN = "SELECT COUNT(*) FROM users WHERE username = ? AND id != ?";
+
+    private static final String CHECK_EMAIL_TAKEN = "SELECT COUNT(*) FROM users WHERE email = ? AND id != ?";
 
     /**
      * Registers a new user with the system.
@@ -18,90 +42,307 @@ public class UserService {
      * @param username the username for the new account
      * @param email the email address for the new account
      * @param password the plain text password to be hashed and stored
-     * @return true if registration was successful, false otherwise
+     * @return the registered User object
      * @throws IllegalArgumentException if any parameter is null or empty
+     * @throws SQLException if a database access error occurs
      */
-    public boolean registerUser(String username, String email, String password) {
+    public User registerUser(String username, String email, String password) throws SQLException {
 
-        if (username == null || username.trim().isEmpty()) {
-            throw new IllegalArgumentException("Username cannot be null or empty");
-        }
-        if (email == null || email.trim().isEmpty()) {
-            throw new IllegalArgumentException("Email cannot be null or empty");
-        }
-        if (password == null || password.trim().isEmpty()) {
-            throw new IllegalArgumentException("Password cannot be null or empty");
+        // Validate input
+        User tempUser = new User(username, email);
+
+        if (!tempUser.validateForRegistration()) {
+            throw new IllegalArgumentException("Invalid user data provided");
         }
 
+        if (password == null || password.length() < 8) {
+            throw new IllegalArgumentException("Password must be at least 8 characters long and include uppercase, lowercase, number, and special character");
+        }
+
+        // Check if username or email already exists
+        if (isUsernameExists(username)) {
+            throw new IllegalArgumentException("Username already exists");
+        }
+
+        if (isEmailExists(email)) {
+            throw new IllegalArgumentException("Email already exists");
+        }
+
+        // Generate salt and hash password
         String salt = PasswordUtil.generateSalt();
-        String hashedPassword = PasswordUtil.hashPassword(password, salt);
+        String passwordHash = PasswordUtil.hashPassword(password, salt);
 
-        String sql = "INSERT INTO users (username, email, password_hash, salt) VALUES (?, ?, ?, ?)";
+        User newUser = new User(username, email, passwordHash, salt);
 
         try (Connection conn = DatabaseUtil.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setString(1, username);
-            stmt.setString(2, email);
-            stmt.setString(3, hashedPassword);
-            stmt.setString(4, salt);
+            PreparedStatement stmt = conn.prepareStatement(INSERT_USER, Statement.RETURN_GENERATED_KEYS)) {
+                stmt.setString(1, newUser.getUsername());
+                stmt.setString(2, newUser.getEmail());
+                stmt.setString(3, newUser.getPasswordHash());
+                stmt.setString(4, newUser.getSalt());
+                stmt.setTimestamp(5, Timestamp.valueOf(newUser.getCreatedAt()));
+                stmt.setTimestamp(6, Timestamp.valueOf(newUser.getUpdatedAt()));
 
-            return stmt.executeUpdate() > 0;
-        } catch (SQLException e) {
-            System.err.println("Error registering user: " + e.getMessage());
-            // Check if it's a duplicate entry error
-            if (e.getMessage().contains("duplicate") || e.getSQLState().equals("23505")) {
-                throw new RuntimeException("Username or email already exists", e);
+                int affectedRows = stmt.executeUpdate();
+                if (affectedRows == 0) {
+                    throw new SQLException("Creating user failed, no rows affected.");
+                }
+
+                try (ResultSet generatedKeys = stmt.getGeneratedKeys()) {
+                    if (generatedKeys.next()) {
+                        newUser.setId(generatedKeys.getLong(1));
+                    } else {
+                        throw new SQLException("Creating user failed, no ID obtained.");
+                    }
+                }
+        }
+
+        return newUser;
+    }
+
+    /**
+     * Authenticates a user by username or email and password.
+     * @param usernameOrEmail the username or email of the user to authenticate
+     * @param password the plain text password to be verified
+     * @return an Optional containing the authenticated User object if successful, empty otherwise
+     * @throws SQLException if a database access error occurs
+     */
+    public Optional<User> authenticateUser(String usernameOrEmail, String password) throws SQLException {
+
+        if (usernameOrEmail == null || usernameOrEmail.trim().isEmpty() ||
+            password == null || password.trim().isEmpty()) {
+                return Optional.empty();
+        }
+
+        try (Connection conn = DatabaseUtil.getConnection();
+            PreparedStatement stmt = conn.prepareStatement(SELECT_USER_BY_USERNAME_OR_EMAIL)) {
+
+            stmt.setString(1, usernameOrEmail);
+            stmt.setString(2, usernameOrEmail);
+
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    User user = mapResultSetToUser(rs);
+
+                    // Verify password
+                    if (PasswordUtil.verifyPassword(password, user.getPasswordHash(), user.getSalt())) {
+                        return Optional.of(user);
+                    }
+                }
             }
+        }
+
+        return Optional.empty();
+    }
+
+    /**
+     * Retrieves a user by their ID.
+     * @param userId the ID of the user to retrieve
+     * @return an Optional containing the User object if found, empty otherwise
+     * @throws SQLException if a database access error occurs
+     */
+    public Optional<User> getUserById(Long userId) throws SQLException {
+        try (Connection conn = DatabaseUtil.getConnection();
+            PreparedStatement stmt = conn.prepareStatement(SELECT_USER_BY_ID)) {
+            
+            stmt.setLong(1, userId);
+            
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    return Optional.of(mapResultSetToUser(rs));
+                }
+            }
+        }
+
+        return Optional.empty();
+    }
+
+    /**
+     * Retrieves a user by their username.
+     * @param username the username of the user to retrieve
+     * @return an Optional containing the User object if found, empty otherwise
+     * @throws SQLException if a database access error occurs
+     */
+    public Optional<User> getUserByUsername(String username) throws SQLException {
+        try (Connection conn = DatabaseUtil.getConnection();
+            PreparedStatement stmt = conn.prepareStatement(SELECT_USER_BY_USERNAME)) {
+            
+            stmt.setString(1, username);
+            
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    return Optional.of(mapResultSetToUser(rs));
+                }
+            }
+        }
+
+        return Optional.empty();
+    }
+
+    /**
+     * Updates a user's password.
+     * @param userId the ID of the user to update
+     * @param currentPassword the current password of the user
+     * @param newPassword the new password to set
+     * @return true if the password update was successful, false otherwise
+     * @throws SQLException if a database access error occurs
+     */
+    public boolean updatePassword(Long userId, String currentPassword, String newPassword) throws SQLException {
+        if (newPassword == null || newPassword.length() < 8) {
+            throw new IllegalArgumentException("New password must be at least 8 characters long");
+        }
+
+        // Verify current password
+        Optional<User> userOptional = getUserById(userId);
+        if (userOptional.isEmpty()) {
             return false;
+        }
+
+        User user = userOptional.get();
+        if (!PasswordUtil.verifyPassword(currentPassword, user.getPasswordHash(), user.getSalt())) {
+            throw new IllegalArgumentException("Current password is incorrect");
+        }
+
+        // Generate new salt and hash new password
+        String newSalt = PasswordUtil.generateSalt();
+        String newPasswordHash = PasswordUtil.hashPassword(newPassword, newSalt);
+
+        try (Connection conn = DatabaseUtil.getConnection();
+            PreparedStatement stmt = conn.prepareStatement(UPDATE_USER_PASSWORD)) {
+                stmt.setString(1, newPasswordHash);
+                stmt.setString(2, newSalt);
+                stmt.setTimestamp(3, Timestamp.valueOf(LocalDateTime.now()));
+                stmt.setLong(4, userId);
+
+                return stmt.executeUpdate() > 0;
         }
     }
 
     /**
-     * Authenticates a user by verifying provided credentials against stored values.
-     * Retrieves user data from database, verifies password, and returns user object if successful.
-     *
-     * @param username the username to authenticate
-     * @param password the plain text password to verify
-     * @return User object if authentication is successful, null otherwise
-     * @throws IllegalArgumentException if username or password is null or empty
+     * Updates a user's profile information (username and email).
+     * @param userId the ID of the user to update
+     * @param newUsername the new username
+     * @param newEmail the new email
+     * @return true if the update was successful, false otherwise
+     * @throws SQLException if a database access error occurs
      */
-    public User loginUser(String username, String password) {
-
-        if (username == null || username.trim().isEmpty()) {
-            throw new IllegalArgumentException("Username cannot be null or empty");
-        }
-        if (password == null || password.trim().isEmpty()) {
-            throw new IllegalArgumentException("Password cannot be null or empty");
+    public boolean updateProfile(Long userId, String newUsername, String newEmail) throws SQLException {
+        User tempUser = new User(newUsername, newEmail);
+        if (!tempUser.validateForRegistration()) {
+            throw new IllegalArgumentException("Invalid user data provided");
         }
 
-        String sql = "SELECT * FROM users WHERE LOWER(TRIM(username))=LOWER(?)";
+        // Check if new username/email already exits (excluding current user)
+        if (isUsernameExistsForOtherUser(newUsername, userId)) {
+            throw new IllegalArgumentException("Username already exists");
+        }
+
+        if (isEmailExistsForOtherUser(newEmail, userId)) {
+            throw new IllegalArgumentException("Email already exists");
+        }
 
         try (Connection conn = DatabaseUtil.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            PreparedStatement stmt = conn.prepareStatement(UPDATE_USER_PROFILE)) {
+                stmt.setString(1, newUsername);
+                stmt.setString(2, newEmail);
+                stmt.setTimestamp(3, Timestamp.valueOf(LocalDateTime.now()));
+                stmt.setLong(4, userId);
 
-            stmt.setString(1, username);
-            ResultSet rs = stmt.executeQuery();
-
-            if (rs.next()) {
-                String storedHash = rs.getString("password_hash");
-                String salt = rs.getString("salt");
-
-                if (PasswordUtil.verifyPassword(password, storedHash, salt)) {
-                    return new User(
-                            rs.getInt("id"),
-                            rs.getString("username"),
-                            rs.getString("email"),
-                            storedHash,
-                            rs.getTimestamp("created_at").toLocalDateTime(),
-                            rs.getTimestamp("updated_at").toLocalDateTime()
-                    );
-                }
+                return stmt.executeUpdate() > 0;
             }
-        } catch (SQLException e) {
-            System.err.println("Error during user login: " + e.getMessage());
-            throw new RuntimeException("Database error during login", e);
+    }
+
+    /**
+     * Checks if a username already exists in the database.
+     * @param username the username to check
+     * @return true if the username exists, false otherwise
+     * @throws SQLException if a database access error occurs
+     */
+    private boolean isUsernameExists(String username) throws SQLException {
+        try (Connection conn = DatabaseUtil.getConnection();
+            PreparedStatement stmt = conn.prepareStatement(CHECK_USERNAME_EXISTS)) {
+                stmt.setString(1, username);
+                
+                try (ResultSet rs = stmt.executeQuery()) {
+                    return rs.next() && rs.getInt(1) > 0;
+                }
+        }
+    }
+
+    /**
+     * Checks if an email already exists in the database.
+     * @param email the email to check
+     * @return true if the email exists, false otherwise
+     * @throws SQLException if a database access error occurs
+     */
+    private boolean isEmailExists(String email) throws SQLException {
+        try (Connection conn = DatabaseUtil.getConnection();
+            PreparedStatement stmt = conn.prepareStatement(CHECK_EMAIL_EXISTS)) {
+                stmt.setString(1, email);
+                
+                try (ResultSet rs = stmt.executeQuery()) {
+                    return rs.next() && rs.getInt(1) > 0;
+                }
+        }
+    }
+
+    /**
+     * Checks if a username already exists in the database for a different user.
+     * @param username the username to check
+     * @param excludeUserId the ID of the user to exclude
+     * @return true if the username exists for another user, false otherwise
+     * @throws SQLException if a database access error occurs
+     */
+    private boolean isUsernameExistsForOtherUser(String username, Long excludeUserId) throws SQLException {
+        try (Connection conn = DatabaseUtil.getConnection();
+            PreparedStatement stmt = conn.prepareStatement(CHECK_USERNAME_TAKEN)) {
+                stmt.setString(1, username);
+                stmt.setLong(2, excludeUserId);
+
+                try (ResultSet rs = stmt.executeQuery()) {
+                    return rs.next() && rs.getInt(1) > 0;
+                }
+        }
+    }
+
+    /**
+     * Checks if an email already exists in the database for a different user.
+     * @param email the email to check
+     * @param excludeUserId the ID of the user to exclude
+     * @return true if the email exists for another user, false otherwise
+     * @throws SQLException if a database access error occurs
+     */
+    private boolean isEmailExistsForOtherUser(String email, Long excludeUserId) throws SQLException {
+        try (Connection conn = DatabaseUtil.getConnection();
+            PreparedStatement stmt = conn.prepareStatement(CHECK_EMAIL_TAKEN)) {
+                stmt.setString(1, email);
+                stmt.setLong(2, excludeUserId);
+
+                try (ResultSet rs = stmt.executeQuery()) {
+                    return rs.next() && rs.getInt(1) > 0;
+                }
+        }
+    }
+
+    private User mapResultSetToUser(ResultSet rs) throws SQLException {
+        User user = new User();
+
+        user.setId(rs.getLong("id"));
+        user.setUsername(rs.getString("username"));
+        user.setEmail(rs.getString("email"));
+        user.setPasswordHash(rs.getString("password_hash"));
+        user.setSalt(rs.getString("salt"));
+
+        Timestamp createdAt = rs.getTimestamp("created_at");
+        if (createdAt != null) {
+            user.setCreatedAt(createdAt.toLocalDateTime());
         }
 
-        return null;
+        Timestamp updatedAt = rs.getTimestamp("updated_at");
+        if (updatedAt != null) {
+            user.setUpdatedAt(updatedAt.toLocalDateTime());
+        }
+
+        return user;
     }
 }

@@ -6,26 +6,35 @@ USE pixl;
 
 -- Create users table
 CREATE TABLE IF NOT EXISTS users (
-    id INT AUTO_INCREMENT PRIMARY KEY,
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
     username VARCHAR(50) UNIQUE NOT NULL,
-    email VARCHAR(100)  UNIQUE NOT NULL,
+    email VARCHAR(100) UNIQUE NOT NULL,
     password_hash VARCHAR(255) NOT NULL,
     salt VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    INDEX idx_username (username),
+    INDEX idx_email (email)
 );
 
 -- Create artworks table
 CREATE TABLE IF NOT EXISTS artworks (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    user_id INT NOT NULL,
+    id BIGINT AUTO_INCREMENT PRIMARY KEY,
     title VARCHAR(255) NOT NULL DEFAULT 'Untitled',
-    pixels JSON NOT NULL,
+    description TEXT,
+    user_id BIGINT NOT NULL,
+    pixel_data LONGTEXT NOT NULL,
     width INT NOT NULL DEFAULT 16,
     height INT NOT NULL DEFAULT 16,
+    is_public BOOLEAN DEFAULT false,
+    shareable_link VARCHAR(32) UNIQUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id)
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    INDEX idx_user_id (user_id),
+    INDEX idx_public (is_public),
+    INDEX idx_shareable_link (shareable_link),
+    INDEX idx_created_at (created_at)
 );
 
 -- replace `password` with your own

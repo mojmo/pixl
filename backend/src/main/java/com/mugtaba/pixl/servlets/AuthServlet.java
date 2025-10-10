@@ -1,10 +1,13 @@
 package com.mugtaba.pixl.servlets;
 
+import com.mugtaba.pixl.exceptions.*;
 import com.mugtaba.pixl.models.ApiResponse;
 import com.mugtaba.pixl.models.User;
 import com.mugtaba.pixl.services.UserService;
 import com.mugtaba.pixl.util.JsonUtil;
+import com.mugtaba.pixl.util.LogUtil;
 import com.mugtaba.pixl.util.PasswordUtil;
+import com.mugtaba.pixl.util.ValidationUtil;
 
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
@@ -25,13 +28,14 @@ import java.util.Optional;
 @WebServlet("/api/auth/*")
 public class AuthServlet extends HttpServlet {
 
-    /** Service class for user-related operations */
+    private static final String COMPONENT_NAME = "AuthServlet";
     private UserService userService;
 
     /** Initializes the servlet */
     @Override
     public void init() {
         userService = new UserService();
+        LogUtil.logInfo(COMPONENT_NAME, "init", "AuthServlet initialized successfully");
     }
 
     /**
@@ -47,23 +51,19 @@ public class AuthServlet extends HttpServlet {
         String pathInfo = request.getPathInfo();
 
         try {
-            if ("/register".equals(pathInfo)) {
-                handleRegister(request, response);
-            } else if ("/login".equals(pathInfo)) {
-                handleLogin(request, response);
-            } else {
-                sendErrorResponse(
-                    response,
-                    HttpServletResponse.SC_NOT_FOUND,
-                    "Endpoint not found"
-                );
+            switch (pathInfo) {
+                case "/register" -> handleRegister(request, response);
+                case "/login" -> handleLogin(request, response);
+                default -> throw new ResourceNotFoundException("Authentication endpoint");
             }
+        } catch (PixlException e) {
+            LogUtil.logError(COMPONENT_NAME, "doPost", e.getLogMessage(), e);
+            sendErrorResponse(response, e.getStatusCode(), e.getUserMessage());
         } catch (Exception e) {
-            System.err.println("Error in AuthServlet: " + e.getMessage());
+            LogUtil.logError(COMPONENT_NAME, "doPost", "Unexpected error in POST request", e);
             sendErrorResponse(
-                response,
-                HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
-                "An internal server error occurred"
+                response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
+                "Unable to complete authentication. Please try again later."
             );
         }
     }
@@ -87,18 +87,19 @@ public class AuthServlet extends HttpServlet {
                 case "/logout" -> handleLogout(request, response);
                 case "/profile" -> handleGetProfile(request, response);
                 case "/session" -> handleCheckSession(request, response);
-                case null, default -> sendErrorResponse(
-                        response,
-                        HttpServletResponse.SC_NOT_FOUND,
-                        "Endpoint not found"
-                );
+                default -> throw new ResourceNotFoundException("Authentication endpoint");
             }
+        } catch (PixlException e) {
+            LogUtil.logError(COMPONENT_NAME, "doGet", e.getLogMessage(), e);
+            sendErrorResponse(response, e.getStatusCode(), e.getUserMessage());
         } catch (Exception e) {
-            System.err.println("Error in AuthServlet: " + e.getMessage());
+            LogUtil.logError(
+                COMPONENT_NAME, "doGet",
+                "Unexpected error in GET request", e
+            );
             sendErrorResponse(
-                response,
-                HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
-                "An internal server error occurred"
+                response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
+                "Unable to complete request. Please try again later."
             );
         }
     }
@@ -117,12 +118,21 @@ public class AuthServlet extends HttpServlet {
 
         String pathInfo = request.getPathInfo();
 
-        if ("/profile".equals(pathInfo)) {
-            handleUpdateProfile(request, response);
-        } else if ("/password".equals(pathInfo)) {
-            handleChangePassword(request, response);
-        } else {
-            sendErrorResponse(response, HttpServletResponse.SC_NOT_FOUND, "Endpoint not found");
+        try {
+            switch (pathInfo) {
+                case "/profile" -> handleUpdateProfile(request, response);
+                case "/password" -> handleChangePassword(request, response);
+                default -> throw new ResourceNotFoundException("Authentication endpoint");
+            }
+        } catch (PixlException e) {
+            LogUtil.logError(COMPONENT_NAME, "doPut", e.getLogMessage(), e);
+            sendErrorResponse(response, e.getStatusCode(), e.getUserMessage());
+        } catch (Exception e) {
+            LogUtil.logError(COMPONENT_NAME, "doPut", "Unexpected error in PUT requests", e);
+            sendErrorResponse(
+                response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
+                "Unable to update information. Please try again later"
+            );
         }
     }
 
@@ -134,60 +144,45 @@ public class AuthServlet extends HttpServlet {
      * @param response the HttpServletResponse object
      * @throws IOException if an input or output error occurs
      */
-    private void handleRegister(HttpServletRequest request, HttpServletResponse response) throws IOException {
+    private void handleRegister(HttpServletRequest request, HttpServletResponse response)
+        throws PixlException, SQLException, IOException {
 
-        try {
-            // Try to parse JSON first, fall back to form parameters
-            Map<String, String> credentials = extractCredentials(request);
+        Map<String, String> credentials = extractCredentials(request);
 
-            String username = credentials.get("username");
-            String email = credentials.get("email");
-            String password = credentials.get("password");
+        String username = credentials.get("username");
+        String email = credentials.get("email");
+        String password = credentials.get("password");
 
-            // Validate required fields
-            if (username == null || email == null || password == null ||
-                username.trim().isEmpty() || email.trim().isEmpty() || password.trim().isEmpty()) {
-                    sendErrorResponse(
-                        response,
-                        HttpServletResponse.SC_BAD_REQUEST,
-                        "Username, email, and password are required"
-                    );
-                    return;
-            }
+        // Validate required fields
+        ValidationUtil.validateStringNotEmpty(username, "Username");
+        ValidationUtil.validateStringNotEmpty(email, "Email");
+        ValidationUtil.validateStringNotEmpty(password, "Password");
 
-            // Validate password strength
-            if (PasswordUtil.isWeakPassword(password)) {
-                sendErrorResponse(
-                    response,
-                    HttpServletResponse.SC_BAD_REQUEST,
-                    "Password must be at least 8 characters long and include uppercase, lowercase, number, and special character"
-                );
-                return;
-            }
+        // Validate field lengths and formats
+        ValidationUtil.validateStringLength(username.trim(), "Username", 3, 50);
+        ValidationUtil.validateStringLength(email.trim(), "Email", 5, 100);
+        ValidationUtil.validateStringLength(password, "Password", 8, 128);
 
-            // Register user
-            User newUser = userService.registerUser(username.trim(), email.trim(), password);
-
-            // Return user data without sensitive information
-            User publicUser = newUser.toPublicUser();
-            sendSuccessResponse(response, "User registered successfully", publicUser);
-        } catch (IllegalArgumentException e) {
-            sendErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST, e.getMessage());
-        } catch (SQLException e) {
-            System.err.println("Database error during registration: " + e.getMessage());
-            sendErrorResponse(
-                response,
-                HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
-                "Registration failed due to server error"
-            );
-        } catch (Exception e) {
-            System.err.println("Unexpected error during registration: " + e.getMessage());
-            sendErrorResponse(
-                response,
-                HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
-                "Registration failed"
-            );
+        // Validate username format
+        if (!username.trim().matches("^[a-zA-Z0-9_]+$")) {
+            throw new ValidationException("Username can only contain letters, numbers, and underscores");
         }
+
+        // Validate password strength
+        if (PasswordUtil.isWeakPassword(password)) {
+            throw new ValidationException("Password must contain at least 3 of: uppercase letter, lowercase letter, number, special character");
+        }
+
+        User newUser = userService.registerUser(username.trim(), email.trim(), password);
+        User publicUser = newUser.toPublicUser();
+
+        LogUtil.logInfo(
+            COMPONENT_NAME, "handleRegister",
+            String.format("User registered successfully: %s (ID: %d)", username.trim(), newUser.getId())
+        );
+
+        response.setStatus(HttpServletResponse.SC_CREATED);
+        sendSuccessResponse(response, "Account created successfully", publicUser);
     }
 
     /**
@@ -198,76 +193,44 @@ public class AuthServlet extends HttpServlet {
      * @param response the HttpServletResponse object
      * @throws IOException if an input or output error occurs
      */
-    private void handleLogin(HttpServletRequest request, HttpServletResponse response) throws IOException {
+    private void handleLogin(HttpServletRequest request, HttpServletResponse response)
+        throws PixlException, SQLException, IOException {
 
-        try {
-            // Try to parse JSON first, fall back to form parameters
-            Map<String, String> credentials = extractCredentials(request);
+        Map<String, String> credentials = extractCredentials(request);
 
-            String usernameOrEmail = credentials.get("username");
-            String password = credentials.get("password");
+        String usernameOrEmail = credentials.get("username");
+        String password = credentials.get("password");
 
-            // Validate required fields
-            if (usernameOrEmail == null || password == null ||
-                usernameOrEmail.trim().isEmpty() || password.trim().isEmpty()) {
-                sendErrorResponse(
-                    response,
-                    HttpServletResponse.SC_BAD_REQUEST,
-                    "Username (or email) and password are required"
-                );
-                return;
-            }
+        ValidationUtil.validateStringNotEmpty(usernameOrEmail, "Username or email");
+        ValidationUtil.validateStringNotEmpty(password, "Password");
 
-            // Authenticate user
-            Optional<User> userOpt = userService.authenticateUser(usernameOrEmail.trim(), password.trim());
+        Optional<User> userOpt = userService.authenticateUser(usernameOrEmail.trim(), password);
 
-            if (userOpt.isPresent()) {
-                User user = userOpt.get();
+        if (userOpt.isPresent()) {
+            User user = userOpt.get();
 
-                System.out.println("\nUser: ");
-                System.out.println(user);
+            // Create a session
+            HttpSession session = request.getSession();
+            session.setAttribute("userId", user.getId());
+            session.setAttribute("username", user.getUsername());
+            session.setAttribute("userEmail", user.getEmail());
+            session.setMaxInactiveInterval(2 * 60 * 60); // 2 hours
 
-                // Create a session
-                HttpSession session = request.getSession();
-                session.setAttribute("userId", user.getId());
-                session.setAttribute("username", user.getUsername());
-                session.setAttribute("userEmail", user.getEmail());
-                session.setMaxInactiveInterval(30 * 60); // 30 minutes
+            Map<String, Object> responseData = new HashMap<>();
+            responseData.put("user", user.toPublicUser());
+            responseData.put("sessionId", session.getId());
 
-                // Prepare response data
-                Map<String, Object> responseData = new HashMap<>();
-                responseData.put("user", user.toPublicUser());
-                responseData.put("sessionId", session.getId());
-
-
-                System.out.println("\nPublic User: ");
-                System.out.println(user.toPublicUser());
-
-                System.out.println("\nresponse: ");
-                System.out.println(responseData);
-
-                sendSuccessResponse(response, "Logged in successfully", responseData);
-            } else {
-                sendErrorResponse(
-                    response,
-                    HttpServletResponse.SC_UNAUTHORIZED,
-                    "Invalid credentials"
-                );
-            }
-        } catch (SQLException e) {
-            System.err.println("Database error during login: " + e.getMessage());
-            sendErrorResponse(
-                response,
-                HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
-                "Login failed due to server error"
+            LogUtil.logInfo(
+                COMPONENT_NAME, "handleLogin",
+                String.format("User logged in successfully: %s (ID: %d)", user.getUsername(), user.getId())
             );
-        } catch (Exception e) {
-            System.err.println("Unexpected error during login: " + e.getMessage());
-            sendErrorResponse(
-                response,
-                HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
-                "Login failed"
+            sendSuccessResponse(response, "Logged in successfully", responseData);
+        } else {
+            LogUtil.logWarning(
+                COMPONENT_NAME, "handleLogin",
+                String.format("Failed login attempt for: %s", usernameOrEmail.trim())
             );
+            throw new UnauthorizedException("Invalid username/email or password");
         }
     }
 
@@ -283,7 +246,15 @@ public class AuthServlet extends HttpServlet {
         HttpSession session = request.getSession(false);
 
         if (session != null) {
+            String username = (String) session.getAttribute("username");
+            Long userId = (Long) session.getAttribute("userId");
+
             session.invalidate();
+
+            LogUtil.logInfo(
+                COMPONENT_NAME, "handleLogout",
+                String.format("User logged out: %s (ID: %d)", username, userId)
+            );
         }
 
         sendSuccessResponse(response, "Logged out successfully", null);
@@ -297,39 +268,20 @@ public class AuthServlet extends HttpServlet {
      * @param response the HttpServletResponse object
      * @throws IOException if an input or output error occurs
      */
-    private void handleGetProfile(HttpServletRequest request, HttpServletResponse response) throws IOException {
+    private void handleGetProfile(HttpServletRequest request, HttpServletResponse response)
+        throws PixlException, SQLException, IOException {
         
         Long userId = getUserIdFromSession(request);
         if (userId == null) {
-            sendErrorResponse(
-                response,
-                HttpServletResponse.SC_UNAUTHORIZED,
-                "User not authenticated");
-            return;
+            throw new UnauthorizedException("Please log in to view your profile");
         }
 
-        try {
-            Optional<User> userOpt = userService.getUserById(userId);
+        Optional<User> userOpt = userService.getUserById(userId);
 
-            if (userOpt.isPresent()) {
-                sendSuccessResponse(
-                    response,
-                    "User profile retrieved successfully",
-                    userOpt.get().toPublicUser()
-                );
-            } else {
-                sendErrorResponse(
-                    response,
-                    HttpServletResponse.SC_NOT_FOUND,
-                    "User not found"
-                );
-            }
-        } catch (SQLException e) {
-            sendErrorResponse(
-                response,
-                HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
-                "Error retrieving profile"
-            );
+        if (userOpt.isPresent()) {
+            sendSuccessResponse(response, "User profile retrieved successfully", userOpt.get().toPublicUser());
+        } else {
+            throw new ResourceNotFoundException("User profile");
         }
     }
 
@@ -341,16 +293,12 @@ public class AuthServlet extends HttpServlet {
      * @param response the HttpServletResponse object
      * @throws IOException if an error occurs during response writing
      */
-    private void handleCheckSession(HttpServletRequest request, HttpServletResponse response) throws IOException {
+    private void handleCheckSession(HttpServletRequest request, HttpServletResponse response)
+        throws PixlException, IOException {
 
         Long userId = getUserIdFromSession(request);
         if (userId == null) {
-            sendErrorResponse(
-                response,
-                HttpServletResponse.SC_UNAUTHORIZED,
-                "No active session"
-            );
-            return;
+            throw new UnauthorizedException("No active session");
         }
 
         HttpSession session = request.getSession(false);
@@ -372,58 +320,43 @@ public class AuthServlet extends HttpServlet {
      * @param response the HttpServletResponse object
      * @throws IOException if an error occurs during response writing
      */
-    private void handleUpdateProfile(HttpServletRequest request, HttpServletResponse response) throws IOException {
+    private void handleUpdateProfile(HttpServletRequest request, HttpServletResponse response)
+        throws PixlException, SQLException, IOException {
 
         Long userId = getUserIdFromSession(request);
         if (userId == null) {
-            sendErrorResponse(
-                response,
-                HttpServletResponse.SC_UNAUTHORIZED,
-                "User not authenticated"
-            );
-            return;
+            throw new UnauthorizedException("Please log in to update your profile");
         }
 
-        try {
-            Map<String, String> updates = extractCredentials(request);
-            String newUsername = updates.get("username");
-            String newEmail = updates.get("email");
+        Map<String, String> updates = extractCredentials(request);
+        String newUsername = updates.get("username");
+        String newEmail = updates.get("email");
 
-            if (newUsername == null || newEmail == null || 
-                newUsername.trim().isEmpty() || newEmail.trim().isEmpty()) {
-                sendErrorResponse(
-                    response,
-                    HttpServletResponse.SC_BAD_REQUEST, 
-                    "Username and email are required"
-                );
-                return;
-            }
+        ValidationUtil.validateStringNotEmpty(newUsername, "Username");
+        ValidationUtil.validateStringNotEmpty(newEmail, "Email");
+        ValidationUtil.validateStringLength(newUsername.trim(), "Username", 3, 50);
+        ValidationUtil.validateStringLength(newEmail.trim(), "Email", 5, 100);
 
-            boolean updated = userService.updateProfile(userId, newUsername.trim(), newEmail.trim());
+        if (!newUsername.trim().matches("^[a-zA-Z0-9_]+$")) {
+            throw new ValidationException("Username can only contain letters, numbers, and underscores");
+        }
 
-            if (updated) {
-                // Update session
-                HttpSession session = request.getSession();
-                session.setAttribute("username", newUsername.trim());
-                session.setAttribute("userEmail", newEmail.trim());
+        boolean updated = userService.updateProfile(userId, newUsername.trim(), newEmail.trim());
 
-                sendSuccessResponse(response, "Profile updated successfully", null);
-            } else {
-                sendErrorResponse(
-                    response,
-                    HttpServletResponse.SC_INTERNAL_SERVER_ERROR, 
-                    "Failed to update profile"
-                );
-            }
-        } catch (IllegalArgumentException e) {
-            sendErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST, e.getMessage());
-        } catch (SQLException e) {
-            System.err.println("Error updating profile: " + e.getMessage());
-            sendErrorResponse(
-                response,
-                HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
-                "Error updating profile"
+        if (updated) {
+            // Update session
+            HttpSession session = request.getSession();
+            session.setAttribute("username", newUsername.trim());
+            session.setAttribute("userEmail", newEmail.trim());
+
+            LogUtil.logInfo(
+                COMPONENT_NAME, "handleUpdateProfile",
+                String.format("User %d updated profile successfully", userId)
             );
+
+            sendSuccessResponse(response, "Profile updated successfully", null);
+        } else {
+            throw new DatabaseException("profile update", new Exception("Update operation failed"));
         }
     }
 
@@ -435,52 +368,35 @@ public class AuthServlet extends HttpServlet {
      * @param response the HttpServletResponse object
      * @throws IOException if an error occurs during response writing
      */
-    private void handleChangePassword(HttpServletRequest request, HttpServletResponse response) throws IOException {
+    private void handleChangePassword(HttpServletRequest request, HttpServletResponse response)
+        throws PixlException, SQLException, IOException {
 
         Long userId = getUserIdFromSession(request);
         if (userId == null) {
-            sendErrorResponse(
-                response,
-                HttpServletResponse.SC_UNAUTHORIZED,
-                "User not authenticated"
-            );
-            return;
+            throw new UnauthorizedException("Please log in to change your password");
         }
 
-        try {
-            Map<String, String> passwords = extractCredentials(request);
-            String currentPassword = passwords.get("currentPassword");
-            String newPassword = passwords.get("newPassword");
+        Map<String, String> passwords = extractCredentials(request);
+        String currentPassword = passwords.get("currentPassword");
+        String newPassword = passwords.get("newPassword");
 
-            if (currentPassword == null || newPassword == null || 
-                currentPassword.trim().isEmpty() || newPassword.trim().isEmpty()) {
-                sendErrorResponse(
-                    response,
-                    HttpServletResponse.SC_BAD_REQUEST, 
-                    "Current password and new password are required"
-                );
-                return;
-            }
+        ValidationUtil.validateStringNotEmpty(currentPassword, "Current password");
+        ValidationUtil.validateStringNotEmpty(newPassword, "New password");
+        ValidationUtil.validateStringLength(newPassword, "New password", 8, 128);
 
-            if (PasswordUtil.isWeakPassword(newPassword)) {
-                sendErrorResponse(
-                    response,
-                    HttpServletResponse.SC_BAD_REQUEST,
-                    "New Password must be at least 8 characters long and include uppercase, lowercase, number, and special character"
-                );
-                return;
-            }
+        if (PasswordUtil.isWeakPassword(newPassword)) {
+            throw new ValidationException("New password must contain at least 3 of: uppercase letter, lowercase letter, number, special character");
+        }
 
-            boolean updated = userService.updatePassword(userId, currentPassword, newPassword);
-            if (updated) {
-                sendSuccessResponse(response, "Password updated successfully", null);
-            } else {
-                sendErrorResponse(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Failed to update password");
-            }
-        } catch (IllegalArgumentException e) {
-            sendErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST, e.getMessage());
-        } catch (SQLException e) {
-            sendErrorResponse(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Error updating password");
+        boolean updated = userService.updatePassword(userId, currentPassword, newPassword);
+        if (updated) {
+            LogUtil.logInfo(
+                COMPONENT_NAME, "handleChangePassword",
+                String.format("User %d changed password successfully", userId)
+            );
+            sendSuccessResponse(response, "Password updated successfully", null);
+        } else {
+            throw new DatabaseException("password update", new Exception("Password update failed"));
         }
     }
 
@@ -490,13 +406,11 @@ public class AuthServlet extends HttpServlet {
      * @param request the HttpServletRequest containing the credentials
      * @return a map of credential keys and values
      */
-    private Map<String, String> extractCredentials(HttpServletRequest request) {
+    private Map<String, String> extractCredentials(HttpServletRequest request) throws PixlException {
         Map<String, String> credentials = new HashMap<>();
-
         String contentType = request.getContentType();
 
         if (contentType != null && contentType.contains("application/json")) {
-            // Parse JSON
             try {
                 @SuppressWarnings("unchecked")
                 Map<String, Object> json = JsonUtil.fromRequest(request, Map.class);
@@ -505,7 +419,11 @@ public class AuthServlet extends HttpServlet {
                     json.forEach((key, value) -> credentials.put(key, value.toString()));
                 }
             } catch (Exception e) {
-                System.err.println("Error parsing JSON: " + e.getMessage());
+                LogUtil.logError(
+                    COMPONENT_NAME, "extractedCredentials",
+                    "Failed to parse JSON", e
+                );
+                throw new ValidationException("Invalid JSON format in request body");
             }
         } else {
             // Fallback to form parameters

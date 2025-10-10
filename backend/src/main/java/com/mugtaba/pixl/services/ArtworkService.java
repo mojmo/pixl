@@ -2,6 +2,8 @@ package com.mugtaba.pixl.services;
 
 import com.mugtaba.pixl.models.Artwork;
 import com.mugtaba.pixl.util.DatabaseUtil;
+import com.mugtaba.pixl.util.LogUtil;
+
 import java.sql.*;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -215,6 +217,14 @@ public class ArtworkService {
      * @throws SQLException if there is an error accessing the database
      */
     public List<Artwork> getPublicArtwork(int limit, int offset) throws SQLException {
+        if (limit <= 0 || limit > 100) {
+            throw new IllegalArgumentException("Limit must be between 1 and 100");
+        }
+
+        if (offset < 0) {
+            throw new IllegalArgumentException("Offset must be non-negative");
+        }
+        
         List<Artwork> artworks = new ArrayList<>();
 
         try (Connection conn = DatabaseUtil.getConnection();
@@ -228,6 +238,16 @@ public class ArtworkService {
                     artworks.add(mapResultSetToArtwork(rs));
                 }
             }
+        } catch (SQLException e) {
+            LogUtil.logError(
+                "ArtworkService", "getPublicArtwork",
+                String.format(
+                    "Database error retrieving public artworks (limit=%d, offset=%d)",
+                    limit, offset
+                ),
+                e
+            );
+            throw new SQLException("Unable to retrieve public artworks", e);
         }
 
         return artworks;

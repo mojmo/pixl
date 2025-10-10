@@ -1,9 +1,13 @@
 package com.mugtaba.pixl.servlets;
 
+import com.mugtaba.pixl.exceptions.*;
 import com.mugtaba.pixl.models.ApiResponse;
 import com.mugtaba.pixl.models.Artwork;
 import com.mugtaba.pixl.services.ArtworkService;
 import com.mugtaba.pixl.util.JsonUtil;
+import com.mugtaba.pixl.util.LogUtil;
+import com.mugtaba.pixl.util.ValidationUtil;
+
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServlet;
@@ -25,12 +29,14 @@ import java.util.Optional;
 @WebServlet("/api/artworks/*")
 public class ArtworkServlet extends HttpServlet {
 
+    private static final String COMPONENT_NAME = "ArtworkServlet";
     private ArtworkService artworkService;
 
     @Override
     public void init() throws ServletException {
         super.init();
         artworkService = new ArtworkService();
+        LogUtil.logInfo(COMPONENT_NAME, "init", "ArtworkServlet initialized successfully");
     }
 
     /**
@@ -51,18 +57,41 @@ public class ArtworkServlet extends HttpServlet {
             if (pathInfo == null || pathInfo.equals("/")) {
                 handleGetArtworks(request, response);
             } else if (pathInfo.startsWith("/share/")) {
-                handleGetByShareableLink(response, pathInfo.substring(7));
+                String shareableLink = pathInfo.substring(7).trim();
+                if (shareableLink.isEmpty()) {
+                    throw new ValidationException("Shareable link is required");
+                }
+                handleGetByShareableLink(response, shareableLink);
             } else if (pathInfo.startsWith("/user/")) {
-                handleGetUserArtworks(request, response, pathInfo.substring(6));
-            } else if (pathInfo.matches("/\\d+")) {
-                handleGetArtworkById(response, Long.parseLong(pathInfo.substring(1)));
+                String userIdStr = pathInfo.substring(6).trim();
+                if (userIdStr.isEmpty()) {
+                    throw new ValidationException("User ID is required");
+                }
+                handleGetUserArtworks(request, response, userIdStr);
             } else {
-                sendErrorResponse(response, HttpServletResponse.SC_NOT_FOUND, "Endpoint not found");
+                // Try to parse as artwork ID - this handles URLs like /api/artworks/123
+                String idStr = pathInfo.substring(1).trim(); // Remove leading slash
+                if (idStr.isEmpty()) {
+                    throw new ValidationException("Artwork ID is required");
+                }
+
+                if (!idStr.matches("^\\d+$")) {
+                    throw new ValidationException("Invalid artwork ID format. Only numbers are allowed.");
+                }
+                
+                Long artworkId = ValidationUtil.parseIdParameter(idStr, "artwork");
+                handleGetArtworkById(response, artworkId);
             }
-        } catch (NumberFormatException e) {
-            sendErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST, "Invalid artwork ID");
+            
+        } catch (PixlException e) {
+            LogUtil.logError(COMPONENT_NAME, "doGet", e.getLogMessage(), e);
+            sendErrorResponse(response, e.getStatusCode(), e.getUserMessage());
         } catch (Exception e) {
-            sendErrorResponse(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Error retrieving artwork: " + e.getMessage());
+            LogUtil.logError(COMPONENT_NAME, "doGet", "Unexpected error in GET request", e);
+            sendErrorResponse(
+                response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, 
+                "Unable to retrieve artwork. Please try again later."
+            );
         }
     }
 
@@ -78,28 +107,57 @@ public class ArtworkServlet extends HttpServlet {
     protected void doPost(HttpServletRequest request, HttpServletResponse response)
         throws IOException {
 
-        Long userId = getUserIdFromSession(request);
-        if (userId == null) {
-            sendErrorResponse(response, HttpServletResponse.SC_UNAUTHORIZED, "User not authenticated");
-            return;
-        }
-
         try {
-            Artwork artwork = JsonUtil.fromJson(request.getReader(), Artwork.class);
+
+            Long userId = getUserIdFromSession(request);
+            if (userId == null) {
+                throw new UnauthorizedException("Please log in to create artwork");
+            }
+
+            Artwork artwork = parseArtworkFromRequest(request);
+            validateArtworkForCreation(artwork);
+
             artwork.setUserId(userId);
-            String username = request.getSession(false).getAttribute("username").toString();
-            if (username != null && !username.isEmpty()) {
-                artwork.setUsername(username);
+
+            // Get username from session for display
+            HttpSession session = request.getSession(false);
+            if (session != null) {
+                String username = session.getAttribute("username").toString();
+                if (username != null && !username.isEmpty()) {
+                    artwork.setUsername(username.trim());
+                }
             }
 
             Artwork createdArtwork = artworkService.createArtwork(artwork);
+
+            LogUtil.logInfo(
+                COMPONENT_NAME, "doPost",
+                String.format("User %d created artwork %d successfully", userId, createdArtwork.getId())
+            );
+            response.setStatus(HttpServletResponse.SC_CREATED);
             sendSuccessResponse(response, "Artwork created successfully", createdArtwork);
-        } catch (IllegalArgumentException e) {
-            System.err.println("IllegalArgumentException in creating artwork: " + e.getMessage());
-            sendErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST, e.getMessage());
+
+        } catch (PixlException e) {
+            LogUtil.logError(COMPONENT_NAME, "doPost", e.getMessage(), e);
+            sendErrorResponse(response, e.getStatusCode(), e.getUserMessage());
+        } catch (SQLException e) {
+            LogUtil.logError(
+                COMPONENT_NAME, "doPost",
+                "Database error during artwork creation", e
+            );
+            sendErrorResponse(
+                response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
+                "Unable to create artwork. Please try again later."
+            );
         } catch (Exception e) {
-            System.err.println("Error creating artwork: " + e.getMessage());
-            sendErrorResponse(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Error creating artwork");
+            LogUtil.logError(
+                COMPONENT_NAME, "doPost",
+                "Unexpected error in POST request", e
+            );
+            sendErrorResponse(
+                response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
+                "Unable to create artwork. Please try again later."
+            );
         }
     }
 
@@ -115,47 +173,67 @@ public class ArtworkServlet extends HttpServlet {
     protected void doPut(HttpServletRequest request, HttpServletResponse response)
             throws IOException {
 
-        Long userId = getUserIdFromSession(request);
-        if (userId == null) {
-            sendErrorResponse(response, HttpServletResponse.SC_UNAUTHORIZED, "User not authenticated");
-            return;
-        }
-
-        String pathInfo = request.getPathInfo();
-        // Check if the Artwork ID is a valid integer
-        if (pathInfo == null || !pathInfo.matches("/\\d+")) {
-            sendErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST, "Invalid Artwork ID format");
-            return;
-        }
-
         try {
-            Long artworkId = Long.parseLong(pathInfo.substring(1));
+
+            Long userId = getUserIdFromSession(request);
+            if (userId == null) {
+                throw new UnauthorizedException("Please log in to update artwork");
+            }
+
+            String pathInfo = request.getPathInfo();
+            // Check if the Artwork ID is a valid integer
+            if (pathInfo == null || !pathInfo.matches("/\\d+")) {
+                throw new ValidationException("Invalid artwork ID format");
+            }
+
+            Long artworkId = ValidationUtil.parseIdParameter(pathInfo.substring(1), "artwork");
 
             // Check ownership
             if (!artworkService.isArtworkOwner(artworkId, userId)) {
-                sendErrorResponse(response, HttpServletResponse.SC_FORBIDDEN, "You do not have permission to update this artwork");
-                return;
+                LogUtil.logUnauthorizedAccess(
+                    COMPONENT_NAME, "doPut",
+                    String.format("User %d attempted to update artwork %d", userId, artworkId)
+                );
+                throw new UnauthorizedException("You can only update your own artworks");
             }
 
-            Artwork artwork = JsonUtil.fromJson(request.getReader(), Artwork.class);
+            Artwork artwork = parseArtworkFromRequest(request);
+            validateArtworkForUpdate(artwork);
+
             artwork.setId(artworkId);
             artwork.setUserId(userId);
 
-            if (!artwork.validateData()) {
-                sendErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST, "Invalid artwork data");
-                return;
-            }
-
             boolean updated = artworkService.updateArtwork(artwork);
             if (updated) {
+                LogUtil.logInfo(
+                    COMPONENT_NAME, "doPut",
+                    String.format("User %d updated artwork %d successfully", userId, artworkId)
+                );
                 sendSuccessResponse(response, "Artwork updated successfully", artwork);
             } else {
-                sendErrorResponse(response, HttpServletResponse.SC_NOT_FOUND, "Artwork not found");
+                throw new ResourceNotFoundException("Artwork");
             }
-        } catch (NumberFormatException e) {
-            sendErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST, "Invalid Artwork ID");
+        } catch (PixlException e) {
+            LogUtil.logError(COMPONENT_NAME, "doPut", e.getLogMessage(), e);
+            sendErrorResponse(response, e.getStatusCode(), e.getUserMessage());
+        } catch (SQLException e) {
+            LogUtil.logError(
+                COMPONENT_NAME, "doPut",
+                "Database error during artwork update", e
+            );
+            sendErrorResponse(
+                response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
+                "Unable to update artwork. Please try again later."
+            );
         } catch (Exception e) {
-            sendErrorResponse(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Error updating artwork: " +e.getMessage());
+            LogUtil.logError(
+                COMPONENT_NAME, "doPut",
+                "Unexpected error in PUT request", e
+            );
+            sendErrorResponse(
+                response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
+                "Unable to update artwork. Please try again later."
+            );
         }
     }
 
@@ -171,32 +249,53 @@ public class ArtworkServlet extends HttpServlet {
     protected void doDelete(HttpServletRequest request, HttpServletResponse response)
         throws IOException {
 
-        Long userId = getUserIdFromSession(request);
-        if (userId == null) {
-            sendErrorResponse(response, HttpServletResponse.SC_UNAUTHORIZED, "User not authenticated");
-            return;
-        }
-
-        String pathInfo = request.getPathInfo();
-        // Check if the Artwork ID is a valid integer
-        if (pathInfo == null || !pathInfo.matches("/\\d+")) {
-            sendErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST, "Invalid Artwork ID format");
-            return;
-        }
-
         try {
-            Long artworkId = Long.parseLong(pathInfo.substring(1));
+
+            Long userId = getUserIdFromSession(request);
+            if (userId == null) {
+                throw new UnauthorizedException("Please log in to delete artwork");
+            }
+
+            String pathInfo = request.getPathInfo();
+            // Check if the Artwork ID is a valid integer
+            if (pathInfo == null || !pathInfo.matches("/\\d+")) {
+                throw new ValidationException("Invalid Artwork ID format");
+            }
+
+            Long artworkId = ValidationUtil.parseIdParameter(pathInfo.substring(1), "artwork");
 
             boolean deleted = artworkService.deleteArtwork(artworkId, userId);
             if (deleted) {
+                LogUtil.logInfo(
+                    COMPONENT_NAME, "doDelete",
+                    String.format("User %d deleted artwork %d successfully", userId, artworkId)
+                );
                 sendSuccessResponse(response, "Artwork deleted successfully", null);
             } else {
-                sendErrorResponse(response, HttpServletResponse.SC_NOT_FOUND, "Artwork not found or access denied");
+                LogUtil.logWarning(
+                    COMPONENT_NAME, "doDelete",
+                    String.format(
+                        "User %d attempted to delete non-existent or unauthorized artwork %d",
+                        userId, artworkId
+                    )
+                );
+                throw new ResourceNotFoundException("Artwork");
             }
-        } catch (NumberFormatException e) {
-            sendErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST, "Invalid Artwork ID");
+        } catch (PixlException e) {
+            LogUtil.logError(COMPONENT_NAME, "doDelete", e.getLogMessage(), e);
+            sendErrorResponse(response, e.getStatusCode(), e.getUserMessage());
+        } catch (SQLException e) {
+            LogUtil.logError(COMPONENT_NAME, "doDelete", "Database error during artwork deletion", e);
+            sendErrorResponse(
+                response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, 
+                "Unable to delete artwork. Please try again later."
+            );
         } catch (Exception e) {
-            sendErrorResponse(response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR, "Error deleting artwork: " + e.getMessage());
+            LogUtil.logError(COMPONENT_NAME, "doDelete", "Unexpected error in DELETE request", e);
+            sendErrorResponse(
+                response, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
+                "Unable to delete artwork. Please try again later"
+            );
         }
     }
 
@@ -209,25 +308,36 @@ public class ArtworkServlet extends HttpServlet {
      * @throws SQLException if a database access error occurs
      */
     private void handleGetArtworks(HttpServletRequest request, HttpServletResponse response)
-            throws IOException, SQLException {
+            throws PixlException, IOException, SQLException {
 
         String type = request.getParameter("type");
-        int page = getIntParameter(request, "page", 1);
-        int limit = getIntParameter(request, "limit", 20);
+        if (!"public".equals(type)) {
+            throw new ValidationException("Invalid type parameter. Only 'public' is supported.");
+        }
+
+        int page = ValidationUtil.parsePageParameter(request.getParameter("page"));
+        int limit = ValidationUtil.parseLimitParameter(request.getParameter("limit"));
+
+        ValidationUtil.validatePagination(page, limit);
+
         int offset = (page - 1) * limit;
 
-        if ("public".equals(type)) {
-            List<Artwork> artworks = artworkService.getPublicArtwork(limit, offset);
-            int totalCount = artworkService.getPublicArtworkCount();
+        List<Artwork> artworks = artworkService.getPublicArtwork(limit, offset);
+        int totalCount = artworkService.getPublicArtworkCount();
 
-            Map<String, Object> result = new HashMap<>();
-            result.put("artworks", artworks);
-            result.put("pagination", createPaginationInfo(page, limit, totalCount));
+        Map<String, Object> result = new HashMap<>();
+        result.put("artworks", artworks);
+        result.put("pagination", createPaginationInfo(page, limit, totalCount));
 
-            sendSuccessResponse(response, "Public artworks retrieved successfully", result);
-        } else {
-            sendErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST, "Invalid type parameter");
-        }
+        LogUtil.logInfo(
+            COMPONENT_NAME, "handleGetArtworks",
+            String.format(
+                "Retrieved %d public artworks (page %d, limit %d)",
+                artworks.size(), page, limit
+            )
+        );
+
+        sendSuccessResponse(response, "Public artworks retrieved successfully", result);
     }
 
     /**
@@ -240,21 +350,41 @@ public class ArtworkServlet extends HttpServlet {
      * @throws SQLException if a database access error occurs
      */
     private void handleGetUserArtworks(HttpServletRequest request, HttpServletResponse response,
-                                    String userIdStr) throws IOException, SQLException {
+                                    String userIdStr) throws PixlException, IOException, SQLException {
         
         Long currentUserId = getUserIdFromSession(request);
         if (currentUserId == null) {
-            sendErrorResponse(response, HttpServletResponse.SC_UNAUTHORIZED, "User not authenticated");
-            return;
+            throw new UnauthorizedException("Please log in to view user artworks");
         }
 
-        try {
-            Long userId = "me".equals(userIdStr) ? currentUserId : Long.parseLong(userIdStr);
-            List<Artwork> artworks = artworkService.getArtworksByUser(userId);
-            sendSuccessResponse(response, "User artworks retrieved successfully", artworks);
-        } catch (NumberFormatException e) {
-            sendErrorResponse(response, HttpServletResponse.SC_BAD_REQUEST, "Invalid user ID");
+        Long userId;
+
+        if ("me".equals(userIdStr)) {
+            userId = currentUserId;
+        } else {
+            userId = ValidationUtil.parseIdParameter(userIdStr, "user");
+
+            // Only allow users to view their own artworks
+            if (!userId.equals(currentUserId)) {
+                LogUtil.logUnauthorizedAccess(
+                    COMPONENT_NAME, "handleGetUserArtworks",
+                    String.format(
+                        "User %d attempted to access user %d's artwork",
+                        currentUserId, userId
+                    )
+                );
+                throw new UnauthorizedException("You can only view your own artworks");
+            }
         }
+
+        List<Artwork> artworks = artworkService.getArtworksByUser(userId);
+
+        LogUtil.logInfo(
+            COMPONENT_NAME, "handleGetUserArtworks",
+            String.format("Retrieved %d artworks for user %d", artworks.size(), userId)
+        );
+
+        sendSuccessResponse(response, "User artworks retrieved successfully", artworks);
     }
 
     /**
@@ -266,13 +396,14 @@ public class ArtworkServlet extends HttpServlet {
      * @throws IOException if an input or output error occurs
      */
     private void handleGetArtworkById(HttpServletResponse response,
-                                      Long artworkId) throws SQLException, IOException {
+                                    Long artworkId) throws PixlException, SQLException, IOException {
 
         Optional<Artwork> artwork = artworkService.getArtworkById(artworkId);
         if (artwork.isPresent()) {
+            LogUtil.logInfo(COMPONENT_NAME, "handleGetArtworkById", String.format("Retrieved artwork %d successfully", artworkId));
             sendSuccessResponse(response, "Artwork retrieved successfully", artwork.get());
         } else {
-            sendErrorResponse(response, HttpServletResponse.SC_NOT_FOUND, "Artwork not found");
+            throw new ResourceNotFoundException("Artwork");
         }
     }
 
@@ -285,15 +416,70 @@ public class ArtworkServlet extends HttpServlet {
      * @throws SQLException if a database access error occurs
      */
     private void handleGetByShareableLink(HttpServletResponse response,
-                                          String shareableLink) throws IOException, SQLException {
+                                        String shareableLink) throws PixlException, IOException, SQLException {
+        
+        ValidationUtil.validateStringNotEmpty(shareableLink, "Shareable link");
 
         Optional<Artwork> artwork = artworkService.getArtworkByLink(shareableLink);
 
         if (artwork.isPresent()) {
-            sendSuccessResponse(response, "Artwork retrieved successfully", artwork.get());
+            LogUtil.logInfo(
+                COMPONENT_NAME, "handleGetByShareableLink",
+                String.format("Retrieved artwork via shareable link %s", shareableLink)
+            );
+            sendSuccessResponse(response, "Shared artwork retrieved successfully", artwork.get());
         } else {
-            sendErrorResponse(response, HttpServletResponse.SC_NOT_FOUND, "Artwork not found");
+            throw new ResourceNotFoundException("Shared artwork");
         }
+    }
+
+    /**
+     * Parses the artwork data from the request body.
+     * @param request the HttpServletRequest object
+     * @return the parsed Artwork object
+     * @throws PixlException if validation fails
+     */
+    private Artwork parseArtworkFromRequest(HttpServletRequest request) throws PixlException {
+        try {
+            Artwork artwork = JsonUtil.fromJson(request.getReader(), Artwork.class);
+            if (artwork == null) {
+                throw new ValidationException("Invalid or missing artwork data");
+            }
+            return artwork;
+        } catch (IOException e) {
+            LogUtil.logError(
+                COMPONENT_NAME, "parseArtworkFromRequest",
+                "Failed to parse JSON", e
+            );
+            throw new ValidationException("Invalid JSON format in request body");
+        }
+    }
+
+    /**
+     * Validates the artwork for creation.
+     * @param artwork the artwork to validate
+     * @throws ValidationException if validation fails
+     */
+    private void validateArtworkForCreation(Artwork artwork) throws ValidationException {
+        ValidationUtil.validateStringNotEmpty(artwork.getTitle(), "Title");
+        ValidationUtil.validateStringLength(artwork.getTitle(), "Title", 1, 100);
+
+        if (artwork.getDescription() != null) {
+            ValidationUtil.validateStringLength(artwork.getDescription(), "Description", 0, 1000);
+        }
+
+        ValidationUtil.validateStringNotEmpty(artwork.getPixelData(), "Pixel data");
+        ValidationUtil.validateRange(artwork.getWidth(), "Width", 1, 512);
+        ValidationUtil.validateRange(artwork.getHeight(), "Height", 1, 512);
+
+        // Validate total pixels don't exceed reasonable limit
+        if (artwork.getWidth() * artwork.getHeight() > 65536) {
+            throw new ValidationException("Artwork size is too large. Maximum 65,536 pixels allowed.");
+        }
+    }
+
+    private void validateArtworkForUpdate(Artwork artwork) throws ValidationException {
+        validateArtworkForCreation(artwork); // same validation rules
     }
 
     /**
@@ -313,27 +499,6 @@ public class ArtworkServlet extends HttpServlet {
             } 
         }
         return null;
-    }
-
-    /**
-     * Retrieves an integer parameter from the request, returning a default value if not present or invalid.
-     *
-     * @param request the HttpServletRequest object
-     * @param paramName the name of the parameter to retrieve
-     * @param defaultValue the default value to return if the parameter is not present or invalid
-     * @return the integer value of the parameter or the default value
-     */
-    private int getIntParameter(HttpServletRequest request, String paramName, int defaultValue) {
-        String param = request.getParameter(paramName);
-        if (param != null) {
-            try {
-                return Integer.parseInt(param);
-            } catch (NumberFormatException e) {
-                return defaultValue;
-            }
-        }
-
-        return defaultValue;
     }
 
     /**

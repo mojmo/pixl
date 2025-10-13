@@ -1,7 +1,9 @@
 package com.mugtaba.pixl.services;
 
 import com.mugtaba.pixl.models.User;
+import com.mugtaba.pixl.util.CacheUtil;
 import com.mugtaba.pixl.util.DatabaseUtil;
+import com.mugtaba.pixl.util.LogUtil;
 import com.mugtaba.pixl.util.PasswordUtil;
 
 import java.sql.*;
@@ -13,6 +15,13 @@ import java.util.Optional;
  * Handles database interactions for user management with secure password handling.
  */
 public class UserService {
+
+    // Cache keys
+    private static final String CACHE_USER_BY_ID = "user_id_%d";
+    private static final String CACHE_USER_BY_USERNAME = "user_username_%s";
+
+    // Cache TTL in minutes
+    private static final int USER_CACHE_TTL = 30;
 
     private static final String INSERT_USER =
     "INSERT INTO users (username, email, password_hash, salt, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?)";
@@ -142,6 +151,18 @@ public class UserService {
      * @throws SQLException if a database access error occurs
      */
     public Optional<User> getUserById(Long userId) throws SQLException {
+        String cacheKey = String.format(CACHE_USER_BY_ID, userId);
+
+        // Try cache first
+        User cachedUser = CacheUtil.get(cacheKey, User.class);
+        if (cachedUser != null) {
+            LogUtil.logInfo(
+                "UserService", "getUserById",
+                String.format("Cache hit for user ID: %d", userId)
+            );
+        }
+
+        // Cache miss - fetch from database
         try (Connection conn = DatabaseUtil.getConnection();
             PreparedStatement stmt = conn.prepareStatement(SELECT_USER_BY_ID)) {
             
@@ -149,7 +170,18 @@ public class UserService {
             
             try (ResultSet rs = stmt.executeQuery()) {
                 if (rs.next()) {
-                    return Optional.of(mapResultSetToUser(rs));
+                    User user = mapResultSetToUser(rs);
+
+                    // Cache the result
+                    CacheUtil.put(cacheKey, user, USER_CACHE_TTL);
+                    CacheUtil.put(String.format(CACHE_USER_BY_USERNAME, user.getUsername()), user, USER_CACHE_TTL);
+
+                    LogUtil.logInfo(
+                        "UserService", "getUserById",
+                        String.format("Database fetch and cached user: %d", userId)
+                    );
+
+                    return Optional.of(user);
                 }
             }
         }
@@ -164,6 +196,18 @@ public class UserService {
      * @throws SQLException if a database access error occurs
      */
     public Optional<User> getUserByUsername(String username) throws SQLException {
+        String cacheKey = String.format(CACHE_USER_BY_USERNAME, username);
+
+        // Try cache first
+        User cachedUser = CacheUtil.get(cacheKey, User.class);
+        if (cachedUser != null) {
+            LogUtil.logInfo(
+                "UserService", "getUserByUsername",
+                String.format("Cache hit for user username: %s", username)
+            );
+            return Optional.of(cachedUser);
+        }
+        
         try (Connection conn = DatabaseUtil.getConnection();
             PreparedStatement stmt = conn.prepareStatement(SELECT_USER_BY_USERNAME)) {
             
@@ -171,7 +215,16 @@ public class UserService {
             
             try (ResultSet rs = stmt.executeQuery()) {
                 if (rs.next()) {
-                    return Optional.of(mapResultSetToUser(rs));
+                    User user = mapResultSetToUser(rs);
+
+                    // Cache the result
+                    CacheUtil.put(cacheKey, user, USER_CACHE_TTL);
+
+                    LogUtil.logInfo(
+                        "UserService", "getUserByUsername",
+                        String.format("Database fetch and cached user: %s", username)
+                    );
+                    return Optional.of(user);
                 }
             }
         }
@@ -248,7 +301,20 @@ public class UserService {
                 stmt.setTimestamp(3, Timestamp.valueOf(LocalDateTime.now()));
                 stmt.setLong(4, userId);
 
-                return stmt.executeUpdate() > 0;
+                boolean updated = stmt.executeUpdate() > 0;
+
+                if (updated) {
+                    // Invalidate user caches
+                    CacheUtil.remove(String.format(CACHE_USER_BY_ID, userId));
+                    CacheUtil.removePattern("user_username_*");
+
+                    LogUtil.logInfo(
+                        "UserService", "updateProfile",
+                        String.format("Updated user %d profile and invalidated cache", userId)
+                    );
+                }
+
+                return updated;
             }
     }
 

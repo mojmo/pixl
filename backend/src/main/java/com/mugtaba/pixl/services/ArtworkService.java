@@ -1,6 +1,7 @@
 package com.mugtaba.pixl.services;
 
 import com.mugtaba.pixl.models.Artwork;
+import com.mugtaba.pixl.util.CacheUtil;
 import com.mugtaba.pixl.util.DatabaseUtil;
 import com.mugtaba.pixl.util.LogUtil;
 
@@ -16,6 +17,18 @@ import java.util.UUID;
  * Provides methods for creating, retrieving, updating, and deleting artworks.
  */
 public class ArtworkService {
+
+    // Cache keys
+    private static final String CACHE_PUBLIC_ARTWORKS = "public_artworks_page_%d_limit_%d";
+    private static final String CACHE_PUBLIC_ARTWORKS_COUNT = "public_artworks_count";
+    private static final String CACHE_ARTWORK_BY_ID = "artwork_id_%d";
+    private static final String CACHE_ARTWORK_BY_LINK = "artwork_link_%s";
+    private static final String CACHE_USER_ARTWORKS = "user_artworks_%d";
+
+    // Cache TTL in minutes
+    private static final int PUBLIC_ARTWORK_TTL = 10;
+    private static final int ARTWORK_DETAILS_TTL = 30;
+    private static final int USER_ARTWORKS_TTL = 15; 
 
     private static final String INSERT_ARTWORK =
         "INSERT INTO artworks (title, description, user_id, pixel_data, width, height, is_public, shareable_link, created_at, updated_at) " +
@@ -44,7 +57,7 @@ public class ArtworkService {
         "SELECT COUNT(*) FROM artworks WHERE is_public = true";
     
     /**
-     * Creates a new artwork record in the database.
+     * Creates a new artwork record in the database and invalidates relevant caches.
      * 
      * @param artwork the Artwork object containing the artwork details
      * @return the created Artwork object
@@ -89,13 +102,21 @@ public class ArtworkService {
                     throw new SQLException("Creating artwork failed, no ID obtained");
                 }
             }
+
+            // Invalidate relevant caches
+            invalidateArtworkCaches(artwork.getUserId(), artwork.isPublic());
+
+            LogUtil.logInfo(
+                "ArtworkService", "createArtwork",
+                String.format("Created artwork %d and invalidated caches", artwork.getId())
+            );
         }
 
         return artwork;
     }
 
     /**
-     * Updates an existing artwork record in the database.
+     * Updates an existing artwork record in the database and invalidates relevant caches.
      * 
      * @param artwork the Artwork object containing the updated artwork details
      * @return true if the artwork was successfully updated, false if the update failed
@@ -131,6 +152,17 @@ public class ArtworkService {
                     artwork.setUsername(updatedArtwork.getUsername());
                     artwork.setShareableLink(updatedArtwork.getShareableLink());
                     artwork.setCreatedAt(updatedArtwork.getCreatedAt());
+
+                    // Invalidate specific artwork cache
+                    CacheUtil.remove(String.format(CACHE_ARTWORK_BY_ID, artwork.getId()));
+
+                    // Invalidate user and public caches
+                    invalidateArtworkCaches(artwork.getUserId(), artwork.isPublic());
+
+                    LogUtil.logInfo(
+                        "ArtworkService", "updateArtwork",
+                        String.format("Updated artwork %d and invalidated caches", artwork.getId())
+                    );
                     return true;
                 }
             }
@@ -140,13 +172,26 @@ public class ArtworkService {
     }
 
     /**
-     * Retrieves an artwork by its ID from the database.
+     * Retrieves an artwork by its ID from the database with caching support.
      * 
      * @param id the ID of the artwork
      * @return an Optional containing the Artwork object if found, or an empty Optional if not found
      * @throws SQLException if an error occurs while accessing the database
      */
     public Optional<Artwork> getArtworkById(long id) throws SQLException {
+        String cacheKey = String.format(CACHE_ARTWORK_BY_ID, id);
+
+        // Try cach first
+        Artwork cachedArtwork = CacheUtil.get(cacheKey, Artwork.class);
+        if (cachedArtwork != null) {
+            LogUtil.logInfo(
+                "ArtworkService", "getArtworkById",
+                String.format("Cache hit for artwork ID: %d", id)
+            );
+            return Optional.of(cachedArtwork);
+        }
+
+        // Cache miss - fetch from database
         try (Connection conn = DatabaseUtil.getConnection();
             PreparedStatement stmt = conn.prepareStatement(SELECT_ARTWORK_BY_ID)) {
 
@@ -154,7 +199,15 @@ public class ArtworkService {
 
             try (ResultSet rs = stmt.executeQuery()) {
                 if (rs.next()) {
-                    return Optional.of(mapResultSetToArtwork(rs));
+                    Artwork artwork = mapResultSetToArtwork(rs);
+
+                    // Cache the result
+                    CacheUtil.put(cacheKey, artwork, ARTWORK_DETAILS_TTL);
+                    LogUtil.logInfo(
+                        "ArtworkService", "getArtworkById",
+                        String.format("Database fetch and cached artwork ID: %d", id)
+                    );
+                    return Optional.of(artwork);
                 }
             }
         }
@@ -170,6 +223,19 @@ public class ArtworkService {
      * @throws SQLException if an error occurs while accessing the database
      */
     public Optional<Artwork> getArtworkByLink(String shareableLink) throws SQLException {
+        String cacheKey = String.format(CACHE_ARTWORK_BY_LINK, shareableLink);
+
+        // Try cache first
+        Artwork cachedArtwork = CacheUtil.get(cacheKey, Artwork.class);
+        if (cachedArtwork != null) {
+            LogUtil.logInfo(
+                "ArtworkService", "getArtworkByLink",
+                String.format("Cache hit for shareable link: %s", shareableLink)
+            );
+            return Optional.of(cachedArtwork);
+        }
+
+        // Cache miss - fetch from database
         try (Connection conn = DatabaseUtil.getConnection();
             PreparedStatement stmt = conn.prepareStatement(SELECT_ARTWORK_BY_LINK)) {
 
@@ -177,7 +243,15 @@ public class ArtworkService {
 
             try (ResultSet rs = stmt.executeQuery()) {
                 if (rs.next()) {
-                    return Optional.of(mapResultSetToArtwork(rs));
+                    Artwork artwork = mapResultSetToArtwork(rs);
+
+                    // Cache the result
+                    CacheUtil.put(cacheKey, artwork, ARTWORK_DETAILS_TTL);
+                    LogUtil.logInfo(
+                        "ArtworkService", "getArtworkByLink",
+                        String.format("Database fetch and cached artwork link: %s", shareableLink)
+                    );
+                    return Optional.of(artwork);
                 }
             }
         }
@@ -186,12 +260,26 @@ public class ArtworkService {
     }
 
     /**
-     * Retrieves a list of artworks for a specific user from the database.
+     * Retrieves a list of artworks for a specific user from the database with caching support.
      * @param userId the ID of the user
      * @return a list of artworks
      * @throws SQLException if there is an error accessing the database
      */
     public List<Artwork> getArtworksByUser(Long userId) throws SQLException {
+        String cacheKey = String.format(CACHE_USER_ARTWORKS, userId);
+
+        // Try cache first
+        @SuppressWarnings("unchecked")
+        List<Artwork> cachedArtworks = CacheUtil.get(cacheKey, List.class);
+        if (cachedArtworks != null) {
+            LogUtil.logInfo(
+                "ArtworkService", "getArtworksByUser",
+                String.format("Cache hit for user artworks: %d", userId)
+            );
+            return cachedArtworks;
+        }
+
+        // Cache miss - fetch from database
         List<Artwork> artworks = new ArrayList<>();
 
         try (Connection conn = DatabaseUtil.getConnection();
@@ -204,13 +292,20 @@ public class ArtworkService {
                     artworks.add(mapResultSetToArtwork(rs));
                 }
             }
+
+            // Cache the results
+            CacheUtil.put(cacheKey, artworks, USER_ARTWORKS_TTL);
+            LogUtil.logInfo(
+                "ArtworkService", "getArtworksByUser",
+                String.format("Database fetch and cached user artworks: %d (count: %d)", userId, artworks.size())
+            );
         }
 
         return artworks;
     }
 
     /**
-     * Retrieves a list of public artworks from the database.
+     * Retrieves a list of public artworks from the database with caching support.
      * @param limit the maximum number of artworks to retrieve
      * @param offset the offset for pagination
      * @return a list of public artworks
@@ -224,7 +319,22 @@ public class ArtworkService {
         if (offset < 0) {
             throw new IllegalArgumentException("Offset must be non-negative");
         }
+
+        int page = (offset / limit) + 1;
+        String cacheKey = String.format(CACHE_PUBLIC_ARTWORKS, page, limit);
         
+        // Try cache first
+        @SuppressWarnings("unchecked")
+        List<Artwork> cachedArtworks = CacheUtil.get(cacheKey, List.class);
+        if (cachedArtworks != null) {
+            LogUtil.logInfo(
+                "ArtworkService", "getPublicArtwork",
+                String.format("Cache hit for public artworks (page=%d, limit=%d)", page, limit)
+            );
+            return cachedArtworks;
+        }
+
+        // Cache miss - fetch from database
         List<Artwork> artworks = new ArrayList<>();
 
         try (Connection conn = DatabaseUtil.getConnection();
@@ -238,6 +348,16 @@ public class ArtworkService {
                     artworks.add(mapResultSetToArtwork(rs));
                 }
             }
+
+            // Cache the results
+            CacheUtil.put(cacheKey, artworks, PUBLIC_ARTWORK_TTL);
+            LogUtil.logInfo(
+                "ArtworkService", "getPublicArtwork",
+                String.format(
+                    "Database fetch and cached public artworks (page=%d, limit=%d, count=%d)",
+                    page, limit, artworks.size()
+                )
+            );
         } catch (SQLException e) {
             LogUtil.logError(
                 "ArtworkService", "getPublicArtwork",
@@ -254,25 +374,41 @@ public class ArtworkService {
     }
 
     /**
-     * Counts the number of public artworks in the database.
+     * Counts the number of public artworks in the database with caching support.
      * @return the count of public artworks
      * @throws SQLException if there is an error accessing the database
      */
     public int getPublicArtworkCount() throws SQLException {
+        // Try cache first
+        Integer cachedCount = CacheUtil.get(CACHE_PUBLIC_ARTWORKS_COUNT, Integer.class);
+        if (cachedCount != null) {
+            LogUtil.logInfo("ArtworkService", "getPublicArtworkCount", "Cache hit for public count");
+            return cachedCount;
+        }
+
+        // Cache miss - fetch from database
         try (Connection conn = DatabaseUtil.getConnection();
             PreparedStatement stmt = conn.prepareStatement(COUNT_PUBLIC_ARTWORKS);
             ResultSet rs = stmt.executeQuery()) {
 
+            int count = 0;
             if (rs.next()) {
-                return rs.getInt(1);
+                count = rs.getInt(1);
             }
-        }
 
-        return 0;
+            // Cache the result
+            CacheUtil.put(CACHE_PUBLIC_ARTWORKS_COUNT, count, PUBLIC_ARTWORK_TTL);
+            LogUtil.logInfo(
+                "ArtworkService", "getPublicArtworkCount",
+                String.format("Database fetch and cached public count: %d", count)
+            );
+
+            return count;
+        }
     }
 
     /**
-     * Deletes an artwork from the database.
+     * Deletes an artwork from the database and invalidates relevant caches.
      * @param artworkId the unique identifier of the artwork to delete
      * @param userId the ID of user who owns the artwork
      * @return true if the artwork was successfully deleted, false otherwise
@@ -286,8 +422,48 @@ public class ArtworkService {
             stmt.setLong(1, artworkId);
             stmt.setLong(2, userId);
 
-            return stmt.executeUpdate() > 0;
+            boolean deleted = stmt.executeUpdate() > 0;
+
+            if (deleted) {
+
+                Artwork deletedArtwork = getArtworkById(artworkId).orElse(null);
+                boolean wasPublic = deletedArtwork != null && deletedArtwork.isPublic();
+
+                // Invalidate specific artwork cache
+                CacheUtil.remove(String.format(CACHE_ARTWORK_BY_ID, artworkId));
+                
+                // Invalidate user and public caches if needed
+                invalidateArtworkCaches(userId, wasPublic);
+                
+                LogUtil.logInfo(
+                    "ArtworkService", "deleteArtwork", 
+                    String.format("Deleted artwork %d and invalidated caches", artworkId)
+                );
+            }
+
+            return deleted;
         }
+    }
+
+    /**
+     * Invalidates artwork-related caches.
+     * @param userId the ID of the user whose artwork caches should be invalidated
+     * @param affectsPublic true if the artwork affects public listings, false otherwise
+     */
+    private void invalidateArtworkCaches(Long userId, boolean affectsPublic) {
+        // Invalidates user's artwork cache
+        CacheUtil.remove(String.format(CACHE_USER_ARTWORKS, userId));
+
+        // Invalidate public caches if this artwork affects public listings
+        if (affectsPublic) {
+            CacheUtil.removePattern("public_artworks_*");
+            CacheUtil.remove(CACHE_PUBLIC_ARTWORKS_COUNT);
+        }
+
+        LogUtil.logInfo(
+            "ArtworkService", "invalidateArtworkCaches",
+            String.format("Invalidated caches for user: %d (public affected: %s)", userId, affectsPublic)
+        );
     }
 
     /**

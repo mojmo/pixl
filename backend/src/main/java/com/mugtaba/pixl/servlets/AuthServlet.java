@@ -119,10 +119,10 @@ public class AuthServlet extends HttpServlet {
         String pathInfo = request.getPathInfo();
 
         try {
-            switch (pathInfo) {
-                case "/profile" -> handleUpdateProfile(request, response);
-                case "/password" -> handleChangePassword(request, response);
-                default -> throw new ResourceNotFoundException("Authentication endpoint");
+            if (pathInfo.equals("/profile")) {
+                handleUpdateProfile(request, response);
+            } else {
+                throw new ResourceNotFoundException("Authentication endpoint");
             }
         } catch (PixlException e) {
             LogUtil.logError(COMPONENT_NAME, "doPut", e.getLogMessage(), e);
@@ -357,46 +357,6 @@ public class AuthServlet extends HttpServlet {
             sendSuccessResponse(response, "Profile updated successfully", null);
         } else {
             throw new DatabaseException("profile update", new Exception("Update operation failed"));
-        }
-    }
-
-    /**
-     * Handles password change requests.
-     * Changes the authenticated user's password.
-     *
-     * @param request the HttpServletRequest object
-     * @param response the HttpServletResponse object
-     * @throws IOException if an error occurs during response writing
-     */
-    private void handleChangePassword(HttpServletRequest request, HttpServletResponse response)
-        throws PixlException, SQLException, IOException {
-
-        Long userId = getUserIdFromSession(request);
-        if (userId == null) {
-            throw new UnauthorizedException("Please log in to change your password");
-        }
-
-        Map<String, String> passwords = extractCredentials(request);
-        String currentPassword = passwords.get("currentPassword");
-        String newPassword = passwords.get("newPassword");
-
-        ValidationUtil.validateStringNotEmpty(currentPassword, "Current password");
-        ValidationUtil.validateStringNotEmpty(newPassword, "New password");
-        ValidationUtil.validateStringLength(newPassword, "New password", 8, 128);
-
-        if (PasswordUtil.isWeakPassword(newPassword)) {
-            throw new ValidationException("New password must contain at least 3 of: uppercase letter, lowercase letter, number, special character");
-        }
-
-        boolean updated = userService.updatePassword(userId, currentPassword, newPassword);
-        if (updated) {
-            LogUtil.logInfo(
-                COMPONENT_NAME, "handleChangePassword",
-                String.format("User %d changed password successfully", userId)
-            );
-            sendSuccessResponse(response, "Password updated successfully", null);
-        } else {
-            throw new DatabaseException("password update", new Exception("Password update failed"));
         }
     }
 

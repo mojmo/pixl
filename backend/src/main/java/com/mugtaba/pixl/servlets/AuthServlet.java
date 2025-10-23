@@ -121,7 +121,7 @@ public class AuthServlet extends HttpServlet {
         try {
             switch (pathInfo) {
                 case "/profile" -> handleUpdateProfile(request, response);
-                case "/password" -> handleChangePassword(request, response);
+                // case "/password" -> handleChangePassword(request, response);
                 default -> throw new ResourceNotFoundException("Authentication endpoint");
             }
         } catch (PixlException e) {
@@ -368,37 +368,37 @@ public class AuthServlet extends HttpServlet {
      * @param response the HttpServletResponse object
      * @throws IOException if an error occurs during response writing
      */
-    private void handleChangePassword(HttpServletRequest request, HttpServletResponse response)
-        throws PixlException, SQLException, IOException {
+    // private void handleChangePassword(HttpServletRequest request, HttpServletResponse response)
+    //     throws PixlException, SQLException, IOException {
 
-        Long userId = getUserIdFromSession(request);
-        if (userId == null) {
-            throw new UnauthorizedException("Please log in to change your password");
-        }
+    //     Long userId = getUserIdFromSession(request);
+    //     if (userId == null) {
+    //         throw new UnauthorizedException("Please log in to change your password");
+    //     }
 
-        Map<String, String> passwords = extractCredentials(request);
-        String currentPassword = passwords.get("currentPassword");
-        String newPassword = passwords.get("newPassword");
+    //     Map<String, String> passwords = extractCredentials(request);
+    //     String currentPassword = passwords.get("currentPassword");
+    //     String newPassword = passwords.get("newPassword");
 
-        ValidationUtil.validateStringNotEmpty(currentPassword, "Current password");
-        ValidationUtil.validateStringNotEmpty(newPassword, "New password");
-        ValidationUtil.validateStringLength(newPassword, "New password", 8, 128);
+    //     ValidationUtil.validateStringNotEmpty(currentPassword, "Current password");
+    //     ValidationUtil.validateStringNotEmpty(newPassword, "New password");
+    //     ValidationUtil.validateStringLength(newPassword, "New password", 8, 128);
 
-        if (PasswordUtil.isWeakPassword(newPassword)) {
-            throw new ValidationException("New password must contain at least 3 of: uppercase letter, lowercase letter, number, special character");
-        }
+    //     if (PasswordUtil.isWeakPassword(newPassword)) {
+    //         throw new ValidationException("New password must contain at least 3 of: uppercase letter, lowercase letter, number, special character");
+    //     }
 
-        boolean updated = userService.updatePassword(userId, currentPassword, newPassword);
-        if (updated) {
-            LogUtil.logInfo(
-                COMPONENT_NAME, "handleChangePassword",
-                String.format("User %d changed password successfully", userId)
-            );
-            sendSuccessResponse(response, "Password updated successfully", null);
-        } else {
-            throw new DatabaseException("password update", new Exception("Password update failed"));
-        }
-    }
+    //     boolean updated = userService.updatePassword(userId, currentPassword, newPassword);
+    //     if (updated) {
+    //         LogUtil.logInfo(
+    //             COMPONENT_NAME, "handleChangePassword",
+    //             String.format("User %d changed password successfully", userId)
+    //         );
+    //         sendSuccessResponse(response, "Password updated successfully", null);
+    //     } else {
+    //         throw new DatabaseException("password update", new Exception("Password update failed"));
+    //     }
+    // }
 
     /**
      * Extracts credentials from the request, supporting both JSON and form data.

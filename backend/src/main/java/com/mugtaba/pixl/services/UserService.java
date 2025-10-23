@@ -5,6 +5,8 @@ import com.mugtaba.pixl.util.CacheUtil;
 import com.mugtaba.pixl.util.DatabaseUtil;
 import com.mugtaba.pixl.util.LogUtil;
 import com.mugtaba.pixl.util.PasswordUtil;
+import com.mugtaba.pixl.services.OtpService.OtpType;
+import com.mugtaba.pixl.services.OtpService.OtpValidationResult;
 
 import java.sql.*;
 import java.time.LocalDateTime;
@@ -19,6 +21,7 @@ public class UserService {
     // Cache keys
     private static final String CACHE_USER_BY_ID = "user_id_%d";
     private static final String CACHE_USER_BY_USERNAME = "user_username_%s";
+    private static final String CACHE_OTP_KEY = "otp_%s_%s";
 
     // Cache TTL in minutes
     private static final int USER_CACHE_TTL = 30;
@@ -29,6 +32,8 @@ public class UserService {
     private static final String SELECT_USER_BY_ID = "SELECT * FROM users WHERE id = ?";
 
     private static final String SELECT_USER_BY_USERNAME = "SELECT * FROM users WHERE username = ?";
+
+    private static final String SELECT_USER_BY_EMAIL = "SELECT * FROM users WHERE email = ? LIMIT 1";
 
     private static final String SELECT_USER_BY_USERNAME_OR_EMAIL = "SELECT * FROM users WHERE username = ? OR email = ?";
 
@@ -43,6 +48,14 @@ public class UserService {
     private static final String CHECK_USERNAME_TAKEN = "SELECT COUNT(*) FROM users WHERE username = ? AND id != ?";
 
     private static final String CHECK_EMAIL_TAKEN = "SELECT COUNT(*) FROM users WHERE email = ? AND id != ?";
+
+    private final EmailService emailService;
+    private final OtpService otpService;
+
+    public UserService() {
+        this.emailService = new EmailService();
+        this.otpService = new OtpService();
+    }
 
     /**
      * Registers a new user with the system.
@@ -316,6 +329,209 @@ public class UserService {
 
                 return updated;
             }
+    }
+
+    /**
+     * Initiates the password reset process by generating an OTP and sending it via email.
+     * @param emailOrUsername email address or username of the user requesting password reset
+     * @return true if password reset initiation was successful, false otherwise
+     * @throws SQLException if a database access error occurs
+     */
+    public boolean initiatePasswordReset(String emailOrUsername) throws SQLException {
+        String normalizedInput = emailOrUsername.trim().toLowerCase();
+
+        Optional<User> userOpt = getUserByUsernameOrEmail(normalizedInput);
+
+        if (userOpt.isEmpty()) {
+            LogUtil.logWarning(
+                "UserService", "initiatePasswordReset",
+                String.format("Password reset requested for non-existent user: %s", normalizedInput)
+            );
+
+            return true; // Return true to not reveal user existence
+        }
+
+        User user = userOpt.get();
+
+        if (!emailService.isEmailConfigured()) {
+            LogUtil.logError(
+                "UserService", "initiatePasswordReset",
+                "Email service not configured - can not send password reset email", null
+            );
+
+            return false;
+        }
+
+        // Generate OTP
+        String otp = otpService.generateOtp(user.getEmail(), OtpType.PASSWORD_RESET);
+
+        if (otp == null) {
+            LogUtil.logWarning(
+                "UserService", "initiatePassword",
+                String.format("OTP generation failed (rate limited) for user: %s", user.getEmail())
+            );
+
+            return false; // rate limited
+        }
+
+        // send email
+        boolean emailSent = emailService.sendPasswordResetOTP(
+            user.getEmail(),
+            user.getUsername(),
+            otp,
+            15 // 15 minutes expiration
+        );
+
+        if (emailSent) {
+            LogUtil.logInfo(
+                "UserService", "initiatePasswordReset",
+                String.format("Password reset OTP sent to user: %s", user.getEmail())
+            );
+        } else {
+            LogUtil.logError(
+                "UserService", "initiatePasswordReset",
+                String.format(
+                    "Failed to send password reset email to: %s",
+                    user.getEmail()
+                ),
+                null
+            );
+        }
+
+        return emailSent;
+    }
+
+    /**
+     * Verifies the OTP for password reset.
+     * @param email user's email address
+     * @param otp OTP code provided by the user
+     * @return verification result
+     */
+    public OtpValidationResult verifyPasswordResetOtp(String email, String otp) {
+        OtpValidationResult result = otpService.validateOtp(email, OtpType.PASSWORD_RESET, otp);
+
+        LogUtil.logInfo(
+            "UserService", "verifyPasswordResetOtp",
+            String.format("Password reset OTP verification for %s: %s", email, result)
+        );
+
+        return result;
+    }
+
+    /**
+     * Completes password reset with new password after OTP verification
+     * @param email user's email address
+     * @param otp OTP code for verification
+     * @param newPassword new password
+     * @return true if password reset successfully, false otherwise
+     * @throws SQLException if a database access error occurs
+     */
+    public boolean completePasswordReset(String email, String otp, String newPassword)
+        throws SQLException {
+
+        // Verify OTP
+        OtpValidationResult otpResult = otpService.validateOtp(
+            email, OtpType.PASSWORD_RESET, otp
+        );
+
+        if (otpResult != OtpValidationResult.VALID) {
+            LogUtil.logWarning(
+                "UserService", "completePasswordReset",
+                String.format("Invalid OTP for password reset: %s (result: %s)", email, otpResult)
+            );
+            return false;
+        }
+
+        // Find user by email
+        Optional<User> userOpt = getUserByEmail(email);
+        if (userOpt.isEmpty()) {
+            LogUtil.logWarning(
+                "UserService", "completePasswordReset",
+                String.format("User not found for password reset: %s", email)
+            );
+
+            return false;
+        }
+
+        User user = userOpt.get();
+
+        // Update password
+        String salt = PasswordUtil.generateSalt();
+        String hashedPassword = PasswordUtil.hashPassword(newPassword, salt);
+
+        try (Connection conn = DatabaseUtil.getConnection();
+            PreparedStatement stmt = conn.prepareStatement(UPDATE_USER_PASSWORD)) {
+                stmt.setString(1, hashedPassword);
+                stmt.setString(2, salt);
+                stmt.setTimestamp(3, Timestamp.valueOf(LocalDateTime.now()));
+                stmt.setLong(4, user.getId());
+
+                int rowsUpdated = stmt.executeUpdate();
+
+                if (rowsUpdated > 0) {
+                    // Invalidate user caches
+                    CacheUtil.remove(String.format(CACHE_USER_BY_ID, user.getId()));
+                    CacheUtil.remove(String.format(CACHE_USER_BY_USERNAME, user.getUsername()));
+                    CacheUtil.remove(String.format(CACHE_OTP_KEY, email, OtpType.PASSWORD_RESET));
+
+                    LogUtil.logInfo(
+                        "UserService", "completePasswordReset",
+                        String.format("Password reset completed successfully for user: %s", user.getEmail())
+                    );
+
+                    return true;
+                }
+        } catch (SQLException e) {
+            LogUtil.logError(
+                "UserService", "completePasswordReset",
+                String.format("Database error updating password for user: %s", email), e
+            );
+            throw e;
+        }
+
+        return false;
+    }
+
+    /**
+     * Retrieves a user by their email.
+     * @param email the email of the user to retrieve
+     * @return an Optional containing the User object if found, empty otherwise
+     * @throws SQLException if a database access error occurs
+     */
+    public Optional<User> getUserByEmail(String email) throws SQLException {
+        
+        try (Connection conn = DatabaseUtil.getConnection();
+            PreparedStatement stmt = conn.prepareStatement(SELECT_USER_BY_EMAIL)) {
+                stmt.setString(1, email);
+
+                try (ResultSet rs = stmt.executeQuery()) {
+                    if (rs.next()) {
+                        User user = mapResultSetToUser(rs);
+                        return Optional.of(user);
+                    }
+                }
+        }
+
+        return Optional.empty();
+    }
+
+    public Optional<User> getUserByUsernameOrEmail(String usernameOrEmail) throws SQLException {
+
+        try (Connection conn = DatabaseUtil.getConnection();
+            PreparedStatement stmt = conn.prepareStatement(SELECT_USER_BY_USERNAME_OR_EMAIL)) {
+
+            stmt.setString(1, usernameOrEmail);
+            stmt.setString(2, usernameOrEmail);
+
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    User user = mapResultSetToUser(rs);
+
+                    return Optional.of(user);
+                }
+            }
+        }
+        return Optional.empty();
     }
 
     /**

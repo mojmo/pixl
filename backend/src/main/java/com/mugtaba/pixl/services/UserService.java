@@ -18,6 +18,8 @@ import java.util.Optional;
  */
 public class UserService {
 
+    private static final String COMPONENT_NAME = "UserService";
+
     // Cache keys
     private static final String CACHE_USER_BY_ID = "user_id_%d";
     private static final String CACHE_USER_BY_USERNAME = "user_username_%s";
@@ -170,7 +172,7 @@ public class UserService {
         User cachedUser = CacheUtil.get(cacheKey, User.class);
         if (cachedUser != null) {
             LogUtil.logInfo(
-                "UserService", "getUserById",
+                COMPONENT_NAME, "getUserById",
                 String.format("Cache hit for user ID: %d", userId)
             );
         }
@@ -190,7 +192,7 @@ public class UserService {
                     CacheUtil.put(String.format(CACHE_USER_BY_USERNAME, user.getUsername()), user, USER_CACHE_TTL);
 
                     LogUtil.logInfo(
-                        "UserService", "getUserById",
+                        COMPONENT_NAME, "getUserById",
                         String.format("Database fetch and cached user: %d", userId)
                     );
 
@@ -215,7 +217,7 @@ public class UserService {
         User cachedUser = CacheUtil.get(cacheKey, User.class);
         if (cachedUser != null) {
             LogUtil.logInfo(
-                "UserService", "getUserByUsername",
+                COMPONENT_NAME, "getUserByUsername",
                 String.format("Cache hit for user username: %s", username)
             );
             return Optional.of(cachedUser);
@@ -234,7 +236,7 @@ public class UserService {
                     CacheUtil.put(cacheKey, user, USER_CACHE_TTL);
 
                     LogUtil.logInfo(
-                        "UserService", "getUserByUsername",
+                        COMPONENT_NAME, "getUserByUsername",
                         String.format("Database fetch and cached user: %s", username)
                     );
                     return Optional.of(user);
@@ -322,7 +324,7 @@ public class UserService {
                     CacheUtil.removePattern("user_username_*");
 
                     LogUtil.logInfo(
-                        "UserService", "updateProfile",
+                        COMPONENT_NAME, "updateProfile",
                         String.format("Updated user %d profile and invalidated cache", userId)
                     );
                 }
@@ -344,7 +346,7 @@ public class UserService {
 
         if (userOpt.isEmpty()) {
             LogUtil.logWarning(
-                "UserService", "initiatePasswordReset",
+                COMPONENT_NAME, "initiatePasswordReset",
                 String.format("Password reset requested for non-existent user: %s", normalizedInput)
             );
 
@@ -355,7 +357,7 @@ public class UserService {
 
         if (!emailService.isEmailConfigured()) {
             LogUtil.logError(
-                "UserService", "initiatePasswordReset",
+                COMPONENT_NAME, "initiatePasswordReset",
                 "Email service not configured - can not send password reset email", null
             );
 
@@ -367,7 +369,7 @@ public class UserService {
 
         if (otp == null) {
             LogUtil.logWarning(
-                "UserService", "initiatePassword",
+                COMPONENT_NAME, "initiatePassword",
                 String.format("OTP generation failed (rate limited) for user: %s", user.getEmail())
             );
 
@@ -384,12 +386,12 @@ public class UserService {
 
         if (emailSent) {
             LogUtil.logInfo(
-                "UserService", "initiatePasswordReset",
+                COMPONENT_NAME, "initiatePasswordReset",
                 String.format("Password reset OTP sent to user: %s", user.getEmail())
             );
         } else {
             LogUtil.logError(
-                "UserService", "initiatePasswordReset",
+                COMPONENT_NAME, "initiatePasswordReset",
                 String.format(
                     "Failed to send password reset email to: %s",
                     user.getEmail()
@@ -411,7 +413,7 @@ public class UserService {
         OtpValidationResult result = otpService.validateOtp(email, OtpType.PASSWORD_RESET, otp);
 
         LogUtil.logInfo(
-            "UserService", "verifyPasswordResetOtp",
+            COMPONENT_NAME, "verifyPasswordResetOtp",
             String.format("Password reset OTP verification for %s: %s", email, result)
         );
 
@@ -436,7 +438,7 @@ public class UserService {
 
         if (otpResult != OtpValidationResult.VALID) {
             LogUtil.logWarning(
-                "UserService", "completePasswordReset",
+                COMPONENT_NAME, "completePasswordReset",
                 String.format("Invalid OTP for password reset: %s (result: %s)", email, otpResult)
             );
             return false;
@@ -446,7 +448,7 @@ public class UserService {
         Optional<User> userOpt = getUserByEmail(email);
         if (userOpt.isEmpty()) {
             LogUtil.logWarning(
-                "UserService", "completePasswordReset",
+                COMPONENT_NAME, "completePasswordReset",
                 String.format("User not found for password reset: %s", email)
             );
 
@@ -475,7 +477,7 @@ public class UserService {
                     CacheUtil.remove(String.format(CACHE_OTP_KEY, email, OtpType.PASSWORD_RESET));
 
                     LogUtil.logInfo(
-                        "UserService", "completePasswordReset",
+                        COMPONENT_NAME, "completePasswordReset",
                         String.format("Password reset completed successfully for user: %s", user.getEmail())
                     );
 

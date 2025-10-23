@@ -18,6 +18,8 @@ import java.util.UUID;
  */
 public class ArtworkService {
 
+    private static final String COMPONENT_NAME = "ArtworkService";
+
     // Cache keys
     private static final String CACHE_PUBLIC_ARTWORKS = "public_artworks_page_%d_limit_%d";
     private static final String CACHE_PUBLIC_ARTWORKS_COUNT = "public_artworks_count";
@@ -107,7 +109,7 @@ public class ArtworkService {
             invalidateArtworkCaches(artwork.getUserId(), artwork.isPublic());
 
             LogUtil.logInfo(
-                "ArtworkService", "createArtwork",
+                COMPONENT_NAME, "createArtwork",
                 String.format("Created artwork %d and invalidated caches", artwork.getId())
             );
         }
@@ -160,7 +162,7 @@ public class ArtworkService {
                     invalidateArtworkCaches(artwork.getUserId(), artwork.isPublic());
 
                     LogUtil.logInfo(
-                        "ArtworkService", "updateArtwork",
+                        COMPONENT_NAME, "updateArtwork",
                         String.format("Updated artwork %d and invalidated caches", artwork.getId())
                     );
                     return true;
@@ -185,7 +187,7 @@ public class ArtworkService {
         Artwork cachedArtwork = CacheUtil.get(cacheKey, Artwork.class);
         if (cachedArtwork != null) {
             LogUtil.logInfo(
-                "ArtworkService", "getArtworkById",
+                COMPONENT_NAME, "getArtworkById",
                 String.format("Cache hit for artwork ID: %d", id)
             );
             return Optional.of(cachedArtwork);
@@ -204,7 +206,7 @@ public class ArtworkService {
                     // Cache the result
                     CacheUtil.put(cacheKey, artwork, ARTWORK_DETAILS_TTL);
                     LogUtil.logInfo(
-                        "ArtworkService", "getArtworkById",
+                        COMPONENT_NAME, "getArtworkById",
                         String.format("Database fetch and cached artwork ID: %d", id)
                     );
                     return Optional.of(artwork);
@@ -229,7 +231,7 @@ public class ArtworkService {
         Artwork cachedArtwork = CacheUtil.get(cacheKey, Artwork.class);
         if (cachedArtwork != null) {
             LogUtil.logInfo(
-                "ArtworkService", "getArtworkByLink",
+                COMPONENT_NAME, "getArtworkByLink",
                 String.format("Cache hit for shareable link: %s", shareableLink)
             );
             return Optional.of(cachedArtwork);
@@ -248,7 +250,7 @@ public class ArtworkService {
                     // Cache the result
                     CacheUtil.put(cacheKey, artwork, ARTWORK_DETAILS_TTL);
                     LogUtil.logInfo(
-                        "ArtworkService", "getArtworkByLink",
+                        COMPONENT_NAME, "getArtworkByLink",
                         String.format("Database fetch and cached artwork link: %s", shareableLink)
                     );
                     return Optional.of(artwork);
@@ -273,7 +275,7 @@ public class ArtworkService {
         List<Artwork> cachedArtworks = CacheUtil.get(cacheKey, List.class);
         if (cachedArtworks != null) {
             LogUtil.logInfo(
-                "ArtworkService", "getArtworksByUser",
+                COMPONENT_NAME, "getArtworksByUser",
                 String.format("Cache hit for user artworks: %d", userId)
             );
             return cachedArtworks;
@@ -296,7 +298,7 @@ public class ArtworkService {
             // Cache the results
             CacheUtil.put(cacheKey, artworks, USER_ARTWORKS_TTL);
             LogUtil.logInfo(
-                "ArtworkService", "getArtworksByUser",
+                COMPONENT_NAME, "getArtworksByUser",
                 String.format("Database fetch and cached user artworks: %d (count: %d)", userId, artworks.size())
             );
         }
@@ -328,7 +330,7 @@ public class ArtworkService {
         List<Artwork> cachedArtworks = CacheUtil.get(cacheKey, List.class);
         if (cachedArtworks != null) {
             LogUtil.logInfo(
-                "ArtworkService", "getPublicArtwork",
+                COMPONENT_NAME, "getPublicArtwork",
                 String.format("Cache hit for public artworks (page=%d, limit=%d)", page, limit)
             );
             return cachedArtworks;
@@ -352,7 +354,7 @@ public class ArtworkService {
             // Cache the results
             CacheUtil.put(cacheKey, artworks, PUBLIC_ARTWORK_TTL);
             LogUtil.logInfo(
-                "ArtworkService", "getPublicArtwork",
+                COMPONENT_NAME, "getPublicArtwork",
                 String.format(
                     "Database fetch and cached public artworks (page=%d, limit=%d, count=%d)",
                     page, limit, artworks.size()
@@ -360,7 +362,7 @@ public class ArtworkService {
             );
         } catch (SQLException e) {
             LogUtil.logError(
-                "ArtworkService", "getPublicArtwork",
+                COMPONENT_NAME, "getPublicArtwork",
                 String.format(
                     "Database error retrieving public artworks (limit=%d, offset=%d)",
                     limit, offset
@@ -382,7 +384,7 @@ public class ArtworkService {
         // Try cache first
         Integer cachedCount = CacheUtil.get(CACHE_PUBLIC_ARTWORKS_COUNT, Integer.class);
         if (cachedCount != null) {
-            LogUtil.logInfo("ArtworkService", "getPublicArtworkCount", "Cache hit for public count");
+            LogUtil.logInfo(COMPONENT_NAME, "getPublicArtworkCount", "Cache hit for public count");
             return cachedCount;
         }
 
@@ -399,7 +401,7 @@ public class ArtworkService {
             // Cache the result
             CacheUtil.put(CACHE_PUBLIC_ARTWORKS_COUNT, count, PUBLIC_ARTWORK_TTL);
             LogUtil.logInfo(
-                "ArtworkService", "getPublicArtworkCount",
+                COMPONENT_NAME, "getPublicArtworkCount",
                 String.format("Database fetch and cached public count: %d", count)
             );
 
@@ -436,7 +438,7 @@ public class ArtworkService {
                 invalidateArtworkCaches(userId, wasPublic);
                 
                 LogUtil.logInfo(
-                    "ArtworkService", "deleteArtwork", 
+                    COMPONENT_NAME, "deleteArtwork",
                     String.format("Deleted artwork %d and invalidated caches", artworkId)
                 );
             }
@@ -461,7 +463,7 @@ public class ArtworkService {
         }
 
         LogUtil.logInfo(
-            "ArtworkService", "invalidateArtworkCaches",
+            COMPONENT_NAME, "invalidateArtworkCaches",
             String.format("Invalidated caches for user: %d (public affected: %s)", userId, affectsPublic)
         );
     }

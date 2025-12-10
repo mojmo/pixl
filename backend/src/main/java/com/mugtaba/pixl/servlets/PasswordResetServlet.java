@@ -111,13 +111,12 @@ public class PasswordResetServlet extends BaseServlet {
         Map<String, String> requestData = extractRequestData(request);
         String email = requestData.get("email").trim().toLowerCase();
         String otp = requestData.get("otp").trim();
-        String emailRegex = "^[\\w!#$%&’*+/=?`{|}~^-]+(?:\\.[\\w!#$%&’*+/=?`{|}~^-]+)*@(?:[a-zA-Z0-9-]+\\.)+[a-zA-Z]{2,6}$";
 
         ValidationUtil.validateStringNotEmpty(email, "Email");
         ValidationUtil.validateStringNotEmpty(otp, "OTP code");
 
         // Validate email format
-        if (!email.matches(emailRegex)) {
+        if (!ValidationUtil.isValidEmail(email)) {
             throw new ValidationException("Invalid email format");
         }
 
@@ -167,13 +166,12 @@ public class PasswordResetServlet extends BaseServlet {
         String email = requestData.get("email").trim().toLowerCase();
         String otp = requestData.get("otp").trim();
         String newPassword = requestData.get("newPassword");
-        String emailRegex = "^[\\w!#$%&’*+/=?`{|}~^-]+(?:\\.[\\w!#$%&’*+/=?`{|}~^-]+)*@(?:[a-zA-Z0-9-]+\\.)+[a-zA-Z]{2,6}$";
 
         ValidationUtil.validateStringNotEmpty(email, "Email");
         ValidationUtil.validateStringNotEmpty(otp, "OTP code");
         ValidationUtil.validateStringNotEmpty(newPassword, "New password");
 
-        if (!email.matches(emailRegex)) {
+        if (!ValidationUtil.isValidEmail(email)) {
             throw new ValidationException("Invalid email format");
         }
 

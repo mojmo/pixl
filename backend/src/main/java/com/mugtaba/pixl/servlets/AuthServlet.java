@@ -165,6 +165,11 @@ public class AuthServlet extends BaseServlet {
             throw new ValidationException("Username can only contain letters, numbers, and underscores");
         }
 
+        // Validate email format
+        if (!ValidationUtil.isValidEmail(email)) {
+            throw new ValidationException("Please provide a valid email address");
+        }
+
         // Validate password strength
         if (PasswordUtil.isWeakPassword(password)) {
             throw new ValidationException("Password must contain at least 3 of: uppercase letter, lowercase letter, number, special character");
@@ -324,6 +329,10 @@ public class AuthServlet extends BaseServlet {
 
         if (!newUsername.matches("^[a-zA-Z0-9_]+$")) {
             throw new ValidationException("Username can only contain letters, numbers, and underscores");
+        }
+
+        if (!ValidationUtil.isValidEmail(newEmail)) {
+            throw new ValidationException("Please provide a valid email address");
         }
 
         boolean updated = userService.updateProfile(userId, newUsername, newEmail);

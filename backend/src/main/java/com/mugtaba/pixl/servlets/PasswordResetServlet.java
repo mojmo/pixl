@@ -1,15 +1,12 @@
 package com.mugtaba.pixl.servlets;
 
 import com.mugtaba.pixl.exceptions.*;
-import com.mugtaba.pixl.models.ApiResponse;
 import com.mugtaba.pixl.services.UserService;
 import com.mugtaba.pixl.services.OtpService.OtpValidationResult;
-import com.mugtaba.pixl.util.JsonUtil;
 import com.mugtaba.pixl.util.LogUtil;
 import com.mugtaba.pixl.util.PasswordUtil;
 import com.mugtaba.pixl.util.ValidationUtil;
 import jakarta.servlet.annotation.WebServlet;
-import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 
@@ -19,7 +16,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 @WebServlet("/api/auth/password-reset/*")
-public class PasswordResetServlet extends HttpServlet {
+public class PasswordResetServlet extends BaseServlet {
 
     private static final String COMPONENT_NAME = "PasswordResetServlet";
     private UserService userService;
@@ -210,66 +207,4 @@ public class PasswordResetServlet extends HttpServlet {
         }
     }
 
-    /**
-     * Extracts request data from the HTTP request body.
-     * @param request the HttpServletRequest object
-     * @return a map of request data
-     * @throws PixlException if an error occurs during JSON parsing
-     */
-    private Map<String, String> extractRequestData(HttpServletRequest request) throws PixlException {
-        try {
-            @SuppressWarnings("unchecked")
-            Map<String, Object> json = JsonUtil.fromRequest(request, Map.class);
-
-            Map<String, String> requestData = new HashMap<>();
-            if (json != null) {
-                json.forEach((key, value) -> {
-                    if (value != null) {
-                        requestData.put(key, value.toString());
-                    }
-                });
-            }
-
-            return requestData;
-        } catch (Exception e) {
-            LogUtil.logError(
-                COMPONENT_NAME, "extractRequestData",
-                "Failed to parse JSON", e
-            );
-            throw new ValidationException("Invalid JSON format in request body");
-        }
-    }
-
-    /**
-     * Sends a success response with the specified message and data.
-     *
-     * @param response the HttpServletResponse object
-     * @param message an informational message about the operation
-     * @param data the payload data to be returned
-     * @throws IOException if an error occurs during response writing
-     */
-    private void sendSuccessResponse(HttpServletResponse response, String message, Object data) throws IOException {
-        response.setContentType("application/json");
-        response.setCharacterEncoding("UTF-8");
-
-        ApiResponse<Object> apiResponse = ApiResponse.success(message, data);
-        JsonUtil.writeJson(response.getWriter(), apiResponse);
-    }
-
-    /**
-     * Sends an error response with the specified status code and message.
-     *
-     * @param response the HttpServletResponse object
-     * @param statusCode the HTTP status code
-     * @param message an error message to be included in the response
-     * @throws IOException if an error occurs during response writing
-     */
-    private void sendErrorResponse(HttpServletResponse response, int statusCode, String message) throws IOException {
-        response.setStatus(statusCode);
-        response.setContentType("application/json");
-        response.setCharacterEncoding("UTF-8");
-
-        ApiResponse<Object> apiResponse = ApiResponse.error(message);
-        JsonUtil.writeJson(response.getWriter(), apiResponse);
-    }
 }

@@ -1,19 +1,15 @@
 package com.mugtaba.pixl.servlets;
 
 import com.mugtaba.pixl.exceptions.*;
-import com.mugtaba.pixl.models.ApiResponse;
 import com.mugtaba.pixl.models.Artwork;
 import com.mugtaba.pixl.services.ArtworkService;
-import com.mugtaba.pixl.util.JsonUtil;
 import com.mugtaba.pixl.util.LogUtil;
 import com.mugtaba.pixl.util.ValidationUtil;
 
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
-import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import jakarta.servlet.http.HttpSession;
 
 import java.io.IOException;
 import java.sql.SQLException;
@@ -27,7 +23,7 @@ import java.util.Optional;
  * Handles CRUD operations for artworks.
  */
 @WebServlet("/api/artworks/*")
-public class ArtworkServlet extends HttpServlet {
+public class ArtworkServlet extends BaseServlet {
 
     private static final String COMPONENT_NAME = "ArtworkServlet";
     private ArtworkService artworkService;
@@ -109,23 +105,18 @@ public class ArtworkServlet extends HttpServlet {
 
         try {
 
-            Long userId = getUserIdFromSession(request);
-            if (userId == null) {
-                throw new UnauthorizedException("Please log in to create artwork");
-            }
+            Long userId = requireAuthentication(request);
 
-            Artwork artwork = parseArtworkFromRequest(request);
+            Artwork artwork = extractRequestObject(request, Artwork.class);
             validateArtworkForCreation(artwork);
 
             artwork.setUserId(userId);
 
             // Get username from session for display
-            HttpSession session = request.getSession(false);
-            if (session != null) {
-                String username = session.getAttribute("username").toString();
-                if (username != null && !username.isEmpty()) {
-                    artwork.setUsername(username.trim());
-                }
+            Map<String, Object> sessionInfo = getUserSessionInfo(request);
+            String username = sessionInfo.get("username").toString();
+            if (username != null && !username.isEmpty()) {
+                artwork.setUsername(username.trim());
             }
 
             Artwork createdArtwork = artworkService.createArtwork(artwork);
@@ -134,8 +125,7 @@ public class ArtworkServlet extends HttpServlet {
                 COMPONENT_NAME, "doPost",
                 String.format("User %d created artwork %d successfully", userId, createdArtwork.getId())
             );
-            response.setStatus(HttpServletResponse.SC_CREATED);
-            sendSuccessResponse(response, "Artwork created successfully", createdArtwork);
+            sendCreatedResponse(response, "Artwork created successfully", createdArtwork);
 
         } catch (PixlException e) {
             LogUtil.logError(COMPONENT_NAME, "doPost", e.getMessage(), e);
@@ -175,10 +165,7 @@ public class ArtworkServlet extends HttpServlet {
 
         try {
 
-            Long userId = getUserIdFromSession(request);
-            if (userId == null) {
-                throw new UnauthorizedException("Please log in to update artwork");
-            }
+            Long userId = requireAuthentication(request);
 
             String pathInfo = request.getPathInfo();
             // Check if the Artwork ID is a valid integer
@@ -197,7 +184,7 @@ public class ArtworkServlet extends HttpServlet {
                 throw new UnauthorizedException("You can only update your own artworks");
             }
 
-            Artwork artwork = parseArtworkFromRequest(request);
+            Artwork artwork = extractRequestObject(request, Artwork.class);
             validateArtworkForUpdate(artwork);
 
             artwork.setId(artworkId);
@@ -251,10 +238,7 @@ public class ArtworkServlet extends HttpServlet {
 
         try {
 
-            Long userId = getUserIdFromSession(request);
-            if (userId == null) {
-                throw new UnauthorizedException("Please log in to delete artwork");
-            }
+            Long userId = requireAuthentication(request);
 
             String pathInfo = request.getPathInfo();
             // Check if the Artwork ID is a valid integer
@@ -315,12 +299,11 @@ public class ArtworkServlet extends HttpServlet {
             throw new ValidationException("Invalid type parameter. Only 'public' is supported.");
         }
 
-        int page = ValidationUtil.parsePageParameter(request.getParameter("page"));
-        int limit = ValidationUtil.parseLimitParameter(request.getParameter("limit"));
+        Map<String, Integer> pagination = validateAndGetPagination(request);
 
-        ValidationUtil.validatePagination(page, limit);
-
-        int offset = (page - 1) * limit;
+        int page = pagination.get("page");
+        int limit = pagination.get("limit");
+        int offset = pagination.get("offset");
 
         List<Artwork> artworks = artworkService.getPublicArtwork(limit, offset);
         int totalCount = artworkService.getPublicArtworkCount();
@@ -352,11 +335,7 @@ public class ArtworkServlet extends HttpServlet {
     private void handleGetUserArtworks(HttpServletRequest request, HttpServletResponse response,
                                     String userIdStr) throws PixlException, IOException, SQLException {
         
-        Long currentUserId = getUserIdFromSession(request);
-        if (currentUserId == null) {
-            throw new UnauthorizedException("Please log in to view user artworks");
-        }
-
+        Long currentUserId = requireAuthentication(request);
         Long userId;
 
         if ("me".equals(userIdStr)) {
@@ -434,28 +413,6 @@ public class ArtworkServlet extends HttpServlet {
     }
 
     /**
-     * Parses the artwork data from the request body.
-     * @param request the HttpServletRequest object
-     * @return the parsed Artwork object
-     * @throws PixlException if validation fails
-     */
-    private Artwork parseArtworkFromRequest(HttpServletRequest request) throws PixlException {
-        try {
-            Artwork artwork = JsonUtil.fromJson(request.getReader(), Artwork.class);
-            if (artwork == null) {
-                throw new ValidationException("Invalid or missing artwork data");
-            }
-            return artwork;
-        } catch (IOException e) {
-            LogUtil.logError(
-                COMPONENT_NAME, "parseArtworkFromRequest",
-                "Failed to parse JSON", e
-            );
-            throw new ValidationException("Invalid JSON format in request body");
-        }
-    }
-
-    /**
      * Validates the artwork for creation.
      * @param artwork the artwork to validate
      * @throws ValidationException if validation fails
@@ -480,81 +437,5 @@ public class ArtworkServlet extends HttpServlet {
 
     private void validateArtworkForUpdate(Artwork artwork) throws ValidationException {
         validateArtworkForCreation(artwork); // same validation rules
-    }
-
-    /**
-     * Retrieves the user ID from the session.
-     *
-     * @param request the HttpServletRequest object
-     * @return the user ID if present, otherwise null
-     */
-    private Long getUserIdFromSession(HttpServletRequest request) {
-
-        HttpSession session = request.getSession(false);
-
-        if (session != null) {
-            Object userId = session.getAttribute("userId");
-            if (userId instanceof Long) {
-                return (Long) userId;
-            } 
-        }
-        return null;
-    }
-
-    /**
-     * Creates pagination information for the response.
-     *
-     * @param currentPage the current page number
-     * @param limit the number of items per page
-     * @param totalCount the total number of items
-     * @return a map containing pagination details
-     */
-    private Map<String, Object> createPaginationInfo(int currentPage, int limit, int totalCount) {
-
-        Map<String, Object> pagination = new HashMap<>();
-
-        pagination.put("currentPage", currentPage);
-        pagination.put("limit", limit);
-        pagination.put("totalCount", totalCount);
-        pagination.put("totalPages", (int) Math.ceil((double) totalCount / limit));
-        pagination.put("hasNext", currentPage * limit < totalCount);
-        pagination.put("hasPrevious", currentPage > 1);
-
-        return pagination;
-    }
-
-    /**
-     * Sends a success response with the specified message and data.
-     * 
-     * @param response the HttpServletResponse object
-     * @param message the success message
-     * @param data the response data
-     * @throws IOException if an input or output error occurs
-     */
-    private void sendSuccessResponse(HttpServletResponse response, String message, Object data) throws IOException {
-
-        response.setContentType("application/json");
-        response.setCharacterEncoding("UTF-8");
-
-        ApiResponse<Object> apiResponse = new ApiResponse<>(true, message, data);
-        JsonUtil.writeJson(response.getWriter(), apiResponse);
-    }
-
-    /**
-     * Sends an error response with the specified status code and message.
-     * 
-     * @param response the HttpServletResponse object
-     * @param statusCode the HTTP status code
-     * @param message the error message
-     * @throws IOException if an input or output error occurs
-     */
-    private void sendErrorResponse(HttpServletResponse response, int statusCode, String message) throws IOException {
-
-        response.setStatus(statusCode);
-        response.setContentType("application/json");
-        response.setCharacterEncoding("UTF-8");
-
-        ApiResponse<Object> apiResponse = new ApiResponse<>(false, message);
-        JsonUtil.writeJson(response.getWriter(), apiResponse);
     }
 }

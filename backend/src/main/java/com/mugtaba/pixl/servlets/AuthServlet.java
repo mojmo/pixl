@@ -1,16 +1,13 @@
 package com.mugtaba.pixl.servlets;
 
 import com.mugtaba.pixl.exceptions.*;
-import com.mugtaba.pixl.models.ApiResponse;
 import com.mugtaba.pixl.models.User;
 import com.mugtaba.pixl.services.UserService;
-import com.mugtaba.pixl.util.JsonUtil;
 import com.mugtaba.pixl.util.LogUtil;
 import com.mugtaba.pixl.util.PasswordUtil;
 import com.mugtaba.pixl.util.ValidationUtil;
 
 import jakarta.servlet.annotation.WebServlet;
-import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.servlet.http.HttpSession;
@@ -26,7 +23,7 @@ import java.util.Optional;
  * Maps to "/auth/*" URL pattern and processes POST, GET, and PUT requests for authentication endpoints.
  */
 @WebServlet("/api/auth/*")
-public class AuthServlet extends HttpServlet {
+public class AuthServlet extends BaseServlet {
 
     private static final String COMPONENT_NAME = "AuthServlet";
     private UserService userService;
@@ -147,7 +144,7 @@ public class AuthServlet extends HttpServlet {
     private void handleRegister(HttpServletRequest request, HttpServletResponse response)
         throws PixlException, SQLException, IOException {
 
-        Map<String, String> credentials = extractCredentials(request);
+        Map<String, String> credentials = extractRequestData(request);
 
         String username = credentials.get("username");
         String email = credentials.get("email");
@@ -181,8 +178,7 @@ public class AuthServlet extends HttpServlet {
             String.format("User registered successfully: %s (ID: %d)", username.trim(), newUser.getId())
         );
 
-        response.setStatus(HttpServletResponse.SC_CREATED);
-        sendSuccessResponse(response, "Account created successfully", publicUser);
+        sendCreatedResponse(response, "Account created successfully", publicUser);
     }
 
     /**
@@ -196,7 +192,7 @@ public class AuthServlet extends HttpServlet {
     private void handleLogin(HttpServletRequest request, HttpServletResponse response)
         throws PixlException, SQLException, IOException {
 
-        Map<String, String> credentials = extractCredentials(request);
+        Map<String, String> credentials = extractRequestData(request);
 
         String usernameOrEmail = credentials.get("username");
         String password = credentials.get("password");
@@ -271,10 +267,7 @@ public class AuthServlet extends HttpServlet {
     private void handleGetProfile(HttpServletRequest request, HttpServletResponse response)
         throws PixlException, SQLException, IOException {
         
-        Long userId = getUserIdFromSession(request);
-        if (userId == null) {
-            throw new UnauthorizedException("Please log in to view your profile");
-        }
+        Long userId = requireAuthentication(request);
 
         Optional<User> userOpt = userService.getUserById(userId);
 
@@ -296,18 +289,12 @@ public class AuthServlet extends HttpServlet {
     private void handleCheckSession(HttpServletRequest request, HttpServletResponse response)
         throws PixlException, IOException {
 
-        Long userId = getUserIdFromSession(request);
-        if (userId == null) {
-            throw new UnauthorizedException("No active session");
-        }
+        requireAuthentication(request);
 
-        HttpSession session = request.getSession(false);
-        Map<String, Object> sessionInfo = new HashMap<>();
-        sessionInfo.put("userId", userId);
-        sessionInfo.put("username", session.getAttribute("username"));
-        sessionInfo.put("email", session.getAttribute("userEmail"));
-        sessionInfo.put("sessionId", session.getId());
-        sessionInfo.put("maxInactiveInterval", session.getMaxInactiveInterval());
+        Map<String, Object> sessionInfo = getUserSessionInfo(request);
+
+        sessionInfo.put("sessionId", request.getSession().getId());
+        sessionInfo.put("maxInactiveInterval", request.getSession().getMaxInactiveInterval());
 
         sendSuccessResponse(response, "Session is active", sessionInfo);
     }
@@ -323,31 +310,29 @@ public class AuthServlet extends HttpServlet {
     private void handleUpdateProfile(HttpServletRequest request, HttpServletResponse response)
         throws PixlException, SQLException, IOException {
 
-        Long userId = getUserIdFromSession(request);
-        if (userId == null) {
-            throw new UnauthorizedException("Please log in to update your profile");
-        }
+        Long userId = requireAuthentication(request);
 
-        Map<String, String> updates = extractCredentials(request);
-        String newUsername = updates.get("username");
-        String newEmail = updates.get("email");
+        Map<String, String> updates = extractRequestData(request);
+
+        String newUsername = updates.get("username").trim();
+        String newEmail = updates.get("email").trim();
 
         ValidationUtil.validateStringNotEmpty(newUsername, "Username");
         ValidationUtil.validateStringNotEmpty(newEmail, "Email");
-        ValidationUtil.validateStringLength(newUsername.trim(), "Username", 3, 50);
-        ValidationUtil.validateStringLength(newEmail.trim(), "Email", 5, 100);
+        ValidationUtil.validateStringLength(newUsername, "Username", 3, 50);
+        ValidationUtil.validateStringLength(newEmail, "Email", 5, 100);
 
-        if (!newUsername.trim().matches("^[a-zA-Z0-9_]+$")) {
+        if (!newUsername.matches("^[a-zA-Z0-9_]+$")) {
             throw new ValidationException("Username can only contain letters, numbers, and underscores");
         }
 
-        boolean updated = userService.updateProfile(userId, newUsername.trim(), newEmail.trim());
+        boolean updated = userService.updateProfile(userId, newUsername, newEmail);
 
         if (updated) {
             // Update session
             HttpSession session = request.getSession();
-            session.setAttribute("username", newUsername.trim());
-            session.setAttribute("userEmail", newEmail.trim());
+            session.setAttribute("username", newUsername);
+            session.setAttribute("userEmail", newEmail);
 
             LogUtil.logInfo(
                 COMPONENT_NAME, "handleUpdateProfile",
@@ -358,97 +343,6 @@ public class AuthServlet extends HttpServlet {
         } else {
             throw new DatabaseException("profile update", new Exception("Update operation failed"));
         }
-    }
-
-    /**
-     * Extracts credentials from the request, supporting both JSON and form data.
-     *
-     * @param request the HttpServletRequest containing the credentials
-     * @return a map of credential keys and values
-     */
-    private Map<String, String> extractCredentials(HttpServletRequest request) throws PixlException {
-        Map<String, String> credentials = new HashMap<>();
-        String contentType = request.getContentType();
-
-        if (contentType != null && contentType.contains("application/json")) {
-            try {
-                @SuppressWarnings("unchecked")
-                Map<String, Object> json = JsonUtil.fromRequest(request, Map.class);
-
-                if (json != null) {
-                    json.forEach((key, value) -> credentials.put(key, value.toString()));
-                }
-            } catch (Exception e) {
-                LogUtil.logError(
-                    COMPONENT_NAME, "extractedCredentials",
-                    "Failed to parse JSON", e
-                );
-                throw new ValidationException("Invalid JSON format in request body");
-            }
-        } else {
-            // Fallback to form parameters
-            request.getParameterMap().forEach((key, value) -> {
-                if (value.length > 0) {
-                    credentials.put(key, value[0]);
-                }
-            });
-        }
-
-        return credentials;
-    }
-
-    /**
-     * Retrieves the user ID from the current session.
-     *
-     * @param request the HttpServletRequest object
-     * @return the user ID if present, otherwise null
-     */
-    private Long getUserIdFromSession(HttpServletRequest request) {
-        HttpSession session = request.getSession(false);
-
-        if (session != null) {
-            Object userId = session.getAttribute("userId");
-            if (userId instanceof Long) {
-                return (Long) userId;
-            }
-        }
-
-        return null;
-    }
-
-    /**
-     * Sends a success response with the specified message and data.
-     *
-     * @param response the HttpServletResponse object
-     * @param message an informational message about the operation
-     * @param data the payload data to be returned
-     * @throws IOException if an error occurs during response writing
-     */
-    private void sendSuccessResponse(HttpServletResponse response, String message, Object data)
-        throws IOException {
-        response.setContentType("application/json");
-        response.setCharacterEncoding("UTF-8");
-
-        ApiResponse<Object> apiResponse = ApiResponse.success(message, data);
-        JsonUtil.writeJson(response.getWriter(), apiResponse);
-    }
-
-    /**
-     * Sends an error response with the specified status code and message.
-     *
-     * @param response the HttpServletResponse object
-     * @param statusCode the HTTP status code
-     * @param message an error message to be included in the response
-     * @throws IOException if an error occurs during response writing
-     */
-    private void sendErrorResponse(HttpServletResponse response, int statusCode, String message)
-        throws IOException {
-        response.setStatus(statusCode);
-        response.setContentType("application/json");
-        response.setCharacterEncoding("UTF-8");
-
-        ApiResponse<Object> apiResponse = ApiResponse.error(message);
-        JsonUtil.writeJson(response.getWriter(), apiResponse);
     }
 
 }

@@ -230,13 +230,13 @@ public abstract class BaseServlet extends HttpServlet {
      * @return map with validated page and limit values
      * @throws ValidationException if parameters are invalid
      */
-    protected Map<String, Object> validateAndGetPagination(HttpServletRequest request) throws ValidationException {
+    protected Map<String, Integer> validateAndGetPagination(HttpServletRequest request) throws ValidationException {
         int page = ValidationUtil.parsePageParameter(request.getParameter("page"));
         int limit = ValidationUtil.parseLimitParameter(request.getParameter("limit"));
 
         ValidationUtil.validatePagination(page, limit);
 
-        Map<String, Object> pagination = new HashMap<>();
+        Map<String, Integer> pagination = new HashMap<>();
         pagination.put("page", page);
         pagination.put("limit", limit);
         pagination.put("offset", (page - 1) * limit);

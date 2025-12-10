@@ -166,4 +166,19 @@ public class ValidationUtil {
             throw new ValidationException("Invalid " + resourceName + " ID format. Only numbers are allowed.");
         }
     }
+
+    /**
+     * Validates email format using regex pattern.
+     * @param email the email to validate
+     * @return true if email format is valid
+    */
+    public static boolean isValidEmail(String email) {
+        if (email == null || email.trim().isEmpty()) {
+            return false;
+        }
+
+        String emailRegex = "^[\\w!#$%&'*+/=?`{|}~^-]+(?:\\.[\\w!#$%&'*+/=?`{|}~^-]+)*@(?:[a-zA-Z0-9-]+\\.)+[a-zA-Z]{2,6}$";
+
+        return email.trim().toLowerCase().matches(emailRegex);
+    }
 }

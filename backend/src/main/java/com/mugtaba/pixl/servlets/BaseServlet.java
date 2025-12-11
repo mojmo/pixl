@@ -83,7 +83,7 @@ public abstract class BaseServlet extends HttpServlet {
         } catch (Exception e) {
             String componentName = this.getClass().getSimpleName();
             LogUtil.logError(componentName, "extractRequestObject", "Failed to parse " + clazz.getSimpleName(), e);
-            throw new ValidationException("Invlaid JSON format in request body");
+            throw new ValidationException("Invalid JSON format in request body");
         }
     }
 

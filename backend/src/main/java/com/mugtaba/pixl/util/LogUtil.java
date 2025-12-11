@@ -54,6 +54,16 @@ public class LogUtil {
     }
 
     /**
+     * Logs a security-related message.
+     * @param component the component or module where the security event occurred
+     * @param message a descriptive security message
+     */
+    public static void logSecurity(String component, String message) {
+        String timestamp = LocalDateTime.now().format(TIMESTAMP_FORMAT);
+        System.out.printf("[%s] SECURITY [%s] %s%n", timestamp, component, message);
+    }
+
+    /**
      * Logs a validation error with details about the invalid field and reason.
      * @param component the component or module where the validation error occurred
      * @param field the specific field that failed validation

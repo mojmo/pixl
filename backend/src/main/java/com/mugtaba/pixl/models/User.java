@@ -27,6 +27,9 @@ public class User {
     @JsonProperty("updatedAt")
     private LocalDateTime updatedAt;
 
+    @JsonProperty("isAdmin")
+    private boolean isAdmin;
+
     /** Default constructor */
     public User() {}
 
@@ -76,6 +79,8 @@ public class User {
     
     public LocalDateTime getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
+
+    public void setAdmin(boolean admin) { isAdmin = admin; }
 
     /**
      * Validates user data for registration.
@@ -130,6 +135,10 @@ public class User {
         publicUser.setEmail(this.email);
         publicUser.setCreatedAt(this.createdAt);
         publicUser.setUpdatedAt(this.updatedAt);
+
+        if (this.isAdmin) {
+            publicUser.setAdmin(true);
+        }
 
         return publicUser;
     }

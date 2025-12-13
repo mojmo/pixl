@@ -35,7 +35,7 @@ public class AdminServlet extends BaseServlet {
     public void init() throws ServletException {
         super.init();
         adminService = new AdminService();
-        LogUtil.logInfo(COMPONENT_NAME, "init", "AdminServlet initialized successfuly");
+        LogUtil.logInfo(COMPONENT_NAME, "init", "AdminServlet initialized successfully");
     }
 
     @Override
@@ -95,7 +95,7 @@ public class AdminServlet extends BaseServlet {
     }
 
     @Override
-    protected void doPut(HttpServletRequest request, HttpServletResponse response) throws IOException {
+    protected void doDelete(HttpServletRequest request, HttpServletResponse response) throws IOException {
         String pathInfo = request.getPathInfo();
 
         try {
@@ -290,7 +290,7 @@ public class AdminServlet extends BaseServlet {
     private void handleDeleteUser(HttpServletRequest request, HttpServletResponse response, String pathInfo) throws PixlException, SQLException, IOException {
 
         // extract user ID from path
-        String idStr = pathInfo.substring(7).trim(); // remove "/users/""
+        String idStr = pathInfo.substring(7).trim(); // remove "/users/"
 
         if (!idStr.matches("^\\d+$")) {
             throw new ValidationException("Invalid user ID format. Only numbers are allowed.");

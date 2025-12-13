@@ -27,7 +27,7 @@ public class User {
     @JsonProperty("updatedAt")
     private LocalDateTime updatedAt;
 
-    @JsonProperty("isAdmin")
+    @JsonIgnore
     private boolean isAdmin;
 
     /** Default constructor */
@@ -80,7 +80,7 @@ public class User {
     public LocalDateTime getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
 
-    public void setAdmin(boolean admin) { isAdmin = admin; }
+    public void setIsAdmin(boolean admin) { isAdmin = admin; }
     public boolean isAdmin() { return isAdmin; }
 
     /**
@@ -138,7 +138,7 @@ public class User {
         publicUser.setUpdatedAt(this.updatedAt);
 
         if (this.isAdmin) {
-            publicUser.setAdmin(true);
+            publicUser.setIsAdmin(true);
         }
 
         return publicUser;

@@ -50,7 +50,7 @@ public class AdminAuthFilter implements Filter {
         Boolean isAdmin = (Boolean) session.getAttribute("isAdmin");
         if (isAdmin == null || !isAdmin) {
             String username = (String) session.getAttribute("username");
-            LogUtil.logSecurity(COMPONENT_NAME, String.format("doFilter", "Non-admin user %s (ID: %d) attempted to access admin endpoint: %s", username, userId, httpRequest.getRequestURI()));
+            LogUtil.logSecurity(COMPONENT_NAME, String.format("Non-admin user %s (ID: %d) attempted to access admin endpoint: %s", username, userId, httpRequest.getRequestURI()));
             sendForbiddenResponse(httpResponse, "Access denied. Admin privileges required.");
             return;
         }

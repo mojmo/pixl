@@ -215,6 +215,7 @@ public class AuthServlet extends BaseServlet {
             session.setAttribute("userId", user.getId());
             session.setAttribute("username", user.getUsername());
             session.setAttribute("userEmail", user.getEmail());
+            session.setAttribute("isAdmin", user.isAdmin());
             session.setMaxInactiveInterval(2 * 60 * 60); // 2 hours
 
             Map<String, Object> responseData = new HashMap<>();
@@ -223,7 +224,10 @@ public class AuthServlet extends BaseServlet {
 
             LogUtil.logInfo(
                 COMPONENT_NAME, "handleLogin",
-                String.format("User logged in successfully: %s (ID: %d)", user.getUsername(), user.getId())
+                String.format(
+                    "User logged in successfully: %s (ID: %d, Admin: %s)",
+                    usernameOrEmail.trim(), user.getId(), user.isAdmin()
+                )
             );
             sendSuccessResponse(response, "Logged in successfully", responseData);
         } else {

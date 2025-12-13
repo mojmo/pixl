@@ -21,16 +21,16 @@ public class AdminService {
     private static final String COMPONENT_NAME = "AdminService";
 
     // user queries
-    private static final String SELECT_ALL_USERS = "SELECT * FROM user ORDER BY created_at DESC LIMIT ? OFFSET ?";
+    private static final String SELECT_ALL_USERS = "SELECT * FROM users ORDER BY created_at DESC LIMIT ? OFFSET ?";
 
     private static final String COUNT_ALL_USERS = "SELECT COUNT(*) FROM users";
 
     private static final String SELECT_USER_ACTIVITY = """
-        SELECT u.id, u.username, u.email, u.is_admin, 
-        COUNT(a.id) as artwork_count, 
+        SELECT u.id, u.username, u.email, u.is_admin,
+        COUNT(a.id) as artwork_count,
         SUM(CASE WHEN a.is_public THEN 1 ELSE 0 END) as public_artwork_count
-        FROM users u 
-        LEFT JOIN artworks a ON u.id = a.user_id 
+        FROM users u
+        LEFT JOIN artworks a ON u.id = a.user_id
         GROUP BY u.id, u.username, u.email, u.is_admin
         ORDER BY artwork_count DESC LIMIT ? OFFSET ?
         """;
@@ -52,7 +52,7 @@ public class AdminService {
 
     // stats queries
     private static final String GET_USER_STATS = """
-        SELECT 
+        SELECT
         COUNT(*) as total_users,
         SUM(CASE WHEN DATE(created_at) = CURDATE() THEN 1 ELSE 0 END) as new_today,
         SUM(CASE WHEN DATE(created_at) >= DATE_SUB(NOW(), INTERVAL 7 DAY) THEN 1 ELSE 0 END) as new_week,
@@ -365,7 +365,7 @@ public class AdminService {
         user.setUsername(rs.getString("username"));
         user.setEmail(rs.getString("email"));
         user.setPasswordHash(rs.getString("password_hash"));
-        user.setAdmin(rs.getBoolean("is_admin"));
+        user.setIsAdmin(rs.getBoolean("is_admin"));
         user.setCreatedAt(rs.getTimestamp("created_at").toLocalDateTime());
         user.setUpdatedAt(rs.getTimestamp("updated_at").toLocalDateTime());
         return user;

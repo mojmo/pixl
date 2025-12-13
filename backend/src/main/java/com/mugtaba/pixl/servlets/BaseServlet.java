@@ -208,7 +208,7 @@ public abstract class BaseServlet extends HttpServlet {
      * @param totalCount the total number of items
      * @return a map containing pagination details
      */
-    protected Map<String, Object> createPaginationInfo(int currentPage, int limit, int totalCount) {
+    protected Map<String, Object> createPaginationInfo(int currentPage, int limit, long totalCount) {
         Map<String, Object> pagination = new HashMap<>();
 
         int totalPages = (int) Math.ceil((double) totalCount / limit);

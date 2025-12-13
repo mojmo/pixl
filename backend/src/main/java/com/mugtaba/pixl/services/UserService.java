@@ -616,6 +616,7 @@ public class UserService {
         user.setEmail(rs.getString("email"));
         user.setPasswordHash(rs.getString("password_hash"));
         user.setSalt(rs.getString("salt"));
+        user.setAdmin(rs.getBoolean("is_admin"));
 
         Timestamp createdAt = rs.getTimestamp("created_at");
         if (createdAt != null) {

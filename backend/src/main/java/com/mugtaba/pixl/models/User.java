@@ -81,6 +81,7 @@ public class User {
     public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
 
     public void setAdmin(boolean admin) { isAdmin = admin; }
+    public boolean isAdmin() { return isAdmin; }
 
     /**
      * Validates user data for registration.

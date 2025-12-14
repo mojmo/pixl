@@ -1,6 +1,8 @@
 package com.mugtaba.pixl.models;
 
+import com.fasterxml.jackson.annotation.JsonGetter;
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.time.LocalDateTime;
 import java.util.Objects;
@@ -28,7 +30,7 @@ public class User {
     private LocalDateTime updatedAt;
 
     @JsonIgnore
-    private boolean isAdmin;
+    private Boolean isAdmin;
 
     /** Default constructor */
     public User() {}
@@ -80,8 +82,10 @@ public class User {
     public LocalDateTime getUpdatedAt() { return updatedAt; }
     public void setUpdatedAt(LocalDateTime updatedAt) { this.updatedAt = updatedAt; }
 
-    public void setIsAdmin(boolean admin) { isAdmin = admin; }
-    public boolean isAdmin() { return isAdmin; }
+    @JsonGetter("isAdmin")
+    @JsonInclude(JsonInclude.Include.NON_DEFAULT)  // Only include if true
+    public Boolean isAdmin() { return isAdmin; }
+    public void setIsAdmin(Boolean admin) { isAdmin = admin; }
 
     /**
      * Validates user data for registration.

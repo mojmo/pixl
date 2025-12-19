@@ -6,6 +6,8 @@ import com.mugtaba.pixl.services.UserService;
 import com.mugtaba.pixl.util.LogUtil;
 import com.mugtaba.pixl.util.PasswordUtil;
 import com.mugtaba.pixl.util.ValidationUtil;
+import com.mugtaba.pixl.filters.RateLimitFilter;
+import com.mugtaba.pixl.util.SecurityUtil;
 
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.HttpServletRequest;
@@ -51,6 +53,7 @@ public class AuthServlet extends BaseServlet {
             switch (pathInfo) {
                 case "/register" -> handleRegister(request, response);
                 case "/login" -> handleLogin(request, response);
+                case "/logout" -> handleLogout(request, response);
                 default -> throw new ResourceNotFoundException("Authentication endpoint");
             }
         } catch (PixlException e) {
@@ -81,7 +84,6 @@ public class AuthServlet extends BaseServlet {
 
         try {
             switch (pathInfo) {
-                case "/logout" -> handleLogout(request, response);
                 case "/profile" -> handleGetProfile(request, response);
                 case "/session" -> handleCheckSession(request, response);
                 default -> throw new ResourceNotFoundException("Authentication endpoint");
@@ -146,8 +148,8 @@ public class AuthServlet extends BaseServlet {
 
         Map<String, String> credentials = extractRequestData(request);
 
-        String username = credentials.get("username");
-        String email = credentials.get("email");
+        String username = sanitize(credentials.get("username"));
+        String email = sanitize(credentials.get("email"));
         String password = credentials.get("password");
 
         // Validate required fields
@@ -175,6 +177,14 @@ public class AuthServlet extends BaseServlet {
             throw new ValidationException("Password must contain at least 3 of: uppercase letter, lowercase letter, number, special character");
         }
 
+        // Check if user exists
+        if (userService.getUserByUsername(username).isPresent()) {
+            throw new ValidationException("Username already exists");
+        }
+        if (userService.getUserByEmail(email).isPresent()) {
+            throw new ValidationException("Email already exists");
+        }
+
         User newUser = userService.registerUser(username.trim(), email.trim(), password);
         User publicUser = newUser.toPublicUser();
 
@@ -199,19 +209,25 @@ public class AuthServlet extends BaseServlet {
 
         Map<String, String> credentials = extractRequestData(request);
 
-        String usernameOrEmail = credentials.get("username");
+        String usernameOrEmail = sanitize(credentials.get("username"));
         String password = credentials.get("password");
 
         ValidationUtil.validateStringNotEmpty(usernameOrEmail, "Username or email");
         ValidationUtil.validateStringNotEmpty(password, "Password");
+
+        validateSqlSafe(usernameOrEmail, "username or email");
 
         Optional<User> userOpt = userService.authenticateUser(usernameOrEmail.trim(), password);
 
         if (userOpt.isPresent()) {
             User user = userOpt.get();
 
+            // reset rate limit on successful login
+            String clientIp = SecurityUtil.getClientIp(request);
+            RateLimitFilter.resetLoginAttempts(clientIp);
+
             // Create a session
-            HttpSession session = request.getSession();
+            HttpSession session = request.getSession(true);
             session.setAttribute("userId", user.getId());
             session.setAttribute("username", user.getUsername());
             session.setAttribute("userEmail", user.getEmail());

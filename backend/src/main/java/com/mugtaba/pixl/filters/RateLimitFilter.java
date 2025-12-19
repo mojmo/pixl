@@ -63,7 +63,7 @@ public class RateLimitFilter implements Filter {
             trackLoginAttempt(clientIp);
         }
 
-        chain.doFilter(httpRequest,httpResponse);
+        chain.doFilter(request,response);
     }
 
     /**

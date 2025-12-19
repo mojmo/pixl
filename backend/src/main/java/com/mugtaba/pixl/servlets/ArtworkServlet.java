@@ -76,7 +76,7 @@ public class ArtworkServlet extends BaseServlet {
                 }
                 
                 Long artworkId = ValidationUtil.parseIdParameter(idStr, "artwork");
-                handleGetArtworkById(response, artworkId);
+                handleGetArtworkById(request, response, artworkId);
             }
             
         } catch (PixlException e) {
@@ -248,6 +248,14 @@ public class ArtworkServlet extends BaseServlet {
 
             Long artworkId = ValidationUtil.parseIdParameter(pathInfo.substring(1), "artwork");
 
+            // Check ownership
+            Optional<Artwork> artworkOpt = artworkService.getArtworkById(artworkId);
+            if (artworkOpt.isEmpty()) {
+                throw new ResourceNotFoundException("Artwork not found");
+            }
+
+            validateOwnership(request, artworkOpt.get().getUserId());
+
             boolean deleted = artworkService.deleteArtwork(artworkId, userId);
             if (deleted) {
                 LogUtil.logInfo(
@@ -374,16 +382,34 @@ public class ArtworkServlet extends BaseServlet {
      * @throws SQLException if a database access error occurs
      * @throws IOException if an input or output error occurs
      */
-    private void handleGetArtworkById(HttpServletResponse response,
+    private void handleGetArtworkById(HttpServletRequest request, HttpServletResponse response,
                                     Long artworkId) throws PixlException, SQLException, IOException {
 
-        Optional<Artwork> artwork = artworkService.getArtworkById(artworkId);
-        if (artwork.isPresent()) {
-            LogUtil.logInfo(COMPONENT_NAME, "handleGetArtworkById", String.format("Retrieved artwork %d successfully", artworkId));
-            sendSuccessResponse(response, "Artwork retrieved successfully", artwork.get());
-        } else {
+        Optional<Artwork> artworkOpt = artworkService.getArtworkById(artworkId);
+
+        if (artworkOpt.isEmpty()) {
             throw new ResourceNotFoundException("Artwork");
         }
+
+        Artwork artwork = artworkOpt.get();
+
+        if (!artwork.isPublic()) {
+            try {
+                Long userId = requireAuthentication(request);
+                Map<String, Object> sessionInfo = getUserSessionInfo(request);
+                boolean isAdmin = Boolean.parseBoolean((String) sessionInfo.get("isAdmin"));
+                // allow access if owner or admin
+                if (!artwork.getUserId().equals(userId) && !isAdmin) {
+                    throw new ForbiddenException("You don't have permission to view this artwork");
+                }
+            } catch (UnauthorizedException e) {
+                // not Authenticated - can't view private artwork
+                throw new UnauthorizedException("You don't have permission to view this artwork");
+            }
+        }
+
+        LogUtil.logInfo(COMPONENT_NAME, "handleGetArtworkById", String.format("Retrieved artwork %d successfully", artworkId));
+        sendSuccessResponse(response, "Artwork retrieved successfully", artwork);
     }
 
     /**
@@ -418,11 +444,11 @@ public class ArtworkServlet extends BaseServlet {
      * @throws ValidationException if validation fails
      */
     private void validateArtworkForCreation(Artwork artwork) throws ValidationException {
-        ValidationUtil.validateStringNotEmpty(artwork.getTitle(), "Title");
+        ValidationUtil.validateStringNotEmpty(sanitize(artwork.getTitle()), "Title");
         ValidationUtil.validateStringLength(artwork.getTitle(), "Title", 1, 100);
 
         if (artwork.getDescription() != null) {
-            ValidationUtil.validateStringLength(artwork.getDescription(), "Description", 0, 1000);
+            ValidationUtil.validateStringLength(sanitize(artwork.getDescription()), "Description", 0, 1000);
         }
 
         ValidationUtil.validateStringNotEmpty(artwork.getPixelData(), "Pixel data");

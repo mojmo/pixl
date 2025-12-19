@@ -1,11 +1,13 @@
 package com.mugtaba.pixl.servlets;
 
+import com.mugtaba.pixl.exceptions.ForbiddenException;
 import com.mugtaba.pixl.exceptions.UnauthorizedException;
 import com.mugtaba.pixl.exceptions.ValidationException;
 import com.mugtaba.pixl.models.ApiResponse;
 import com.mugtaba.pixl.util.JsonUtil;
 import com.mugtaba.pixl.util.LogUtil;
 import com.mugtaba.pixl.util.ValidationUtil;
+import com.mugtaba.pixl.util.SecurityUtil;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -120,9 +122,45 @@ public abstract class BaseServlet extends HttpServlet {
             sessionInfo.put("userId", session.getAttribute("userId"));
             sessionInfo.put("username", session.getAttribute("username"));
             sessionInfo.put("email", session.getAttribute("userEmail"));
+            sessionInfo.put("isAdmin", session.getAttribute("isAdmin"));
         }
 
         return sessionInfo;
+    }
+
+    /**
+     * Validates the current user owns the resource
+     * @param request the HttpServletRequest
+     * @param resourceOwnerId the ID of the resource owner
+     * @throws ForbiddenException if current user is not the owner of the resource and not admin
+     */
+    protected void validateOwnership(HttpServletRequest request, Long resourceOwnerId) throws ForbiddenException {
+        Map<String, Object> sessionInfo = getUserSessionInfo(request);
+        boolean isAdmin = sessionInfo.get("isAdmin") == null;
+        Long currentUserId = getUserIdFromSession(request);
+
+        if (!currentUserId.equals(resourceOwnerId) && !isAdmin) {
+            throw new ForbiddenException("You don't have permission to access this resource");
+        }
+    }
+
+    /**
+     * Sanitize string input to prevent XSS attacks
+     * @param input the input to be sanitized
+     * @return the sanitized input
+     */
+    protected String sanitize(String input) {
+        return SecurityUtil.sanitizeInput(input);
+    }
+
+    protected void validateSqlSafe(String input, String fieldName) throws ValidationException {
+        if (!SecurityUtil.isSqlSafe(input)) {
+            LogUtil.logWarning(
+                    getClass().getSimpleName(), "validateSqlSafe",
+                    String.format("Potential SQL injection attempt in field: %s", fieldName)
+            );
+            throw new ValidationException("Invalid input detected in " + fieldName);
+        }
     }
 
     /**

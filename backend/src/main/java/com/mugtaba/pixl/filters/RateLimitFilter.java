@@ -139,7 +139,7 @@ public class RateLimitFilter implements Filter {
 
         response.setHeader("Retry-After", "60");
 
-        ApiResponse<Object> apiResponse = ApiResponse.error(message, null, 429);
+        ApiResponse<Object> apiResponse = ApiResponse.error(message);
         JsonUtil.writeJson(response.getWriter(), apiResponse);
     }
 

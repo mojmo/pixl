@@ -45,9 +45,10 @@ public class RateLimitFilter implements Filter {
         if (isLockedOut(clientIp)) {
             LogUtil.logWarning(
                     COMPONENT_NAME, "doFilter",
-                    String.format("Blocked request from locked out IP: %s", clientIp)
+                    String.format("Blocked request from locked out IP: %s, URI: %s", clientIp, requestUri)
             );
             sendRateLimitResponse(httpResponse, "Too many failed attempts. Please try again later.");
+            return;
         }
 
         // check general rate limit
@@ -56,6 +57,8 @@ public class RateLimitFilter implements Filter {
                     COMPONENT_NAME, "doFilter",
                     String.format("Rate limit exceeded for IP: %s, URI: %s", clientIp, requestUri)
             );
+            sendRateLimitResponse(httpResponse, "Too many requests. Please slow down.");
+            return;
         }
 
         // track login attempts for brute force protection
@@ -105,19 +108,19 @@ public class RateLimitFilter implements Filter {
         AtomicInteger attempts = CacheUtil.get(attemptKey, AtomicInteger.class);
 
         if (attempts == null) {
-            attempts = new AtomicInteger(1);
+            attempts = new AtomicInteger(0);
             CacheUtil.put(attemptKey, attempts, 60); // 1 hour TTL
         } else {
             int attemptCount = attempts.incrementAndGet();
 
-            if (attemptCount > MAX_LOGIN_ATTEMPTS_PER_HOUR) {
+            if (attemptCount >= MAX_LOGIN_ATTEMPTS_PER_HOUR) {
                 // lock out the IP
                 String lockoutKey = String.format(LOCKOUT_KEY, clientIp);
                 CacheUtil.put(lockoutKey, true, LOCKOUT_DURATION_MINUTES);
 
                     LogUtil.logWarning(
                             COMPONENT_NAME, "trackLoginAttempt",
-                            String.format("IP locked out due to excessive login attempts: %s", clientIp)
+                            String.format("IP locked out due to excessive login attempts: %s (attempts: %d)", clientIp, attemptCount)
                     );
             }
         }

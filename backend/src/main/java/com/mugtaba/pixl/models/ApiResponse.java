@@ -33,10 +33,6 @@ public class ApiResponse<T> {
     private String error;
     @JsonProperty("timestamp")
     private final LocalDateTime timestamp;
-    @JsonProperty("path")
-    private String path;
-    @JsonProperty("status")
-    private Integer status;
 
     /**
      * Constructs a successful API response with data and an optional message.
@@ -79,46 +75,6 @@ public class ApiResponse<T> {
         this.timestamp = LocalDateTime.now();
     }
 
-    /**
-     * Constructs an API response with error message and additional context such as path and status.
-     * 
-     * @param success false indicating a failed operation
-     * @param error   a description of the error that occurred
-     * @param path    the request path that was accessed
-     * @param status  the HTTP status code for the response
-     */
-    public ApiResponse(boolean success, String error, String path, Integer status) {
-        if (success && error != null) {
-            throw new IllegalArgumentException("Successful responses should not contain error messages");
-        }
-        this.success = success;
-        this.message = null;
-        this.data = null;
-        this.error = error;
-        this.timestamp = LocalDateTime.now();
-        this.path = path;
-        this.status = status;
-    }
-
-    /**
-     * Constructs an API response with additional context such as path and status.
-     *
-     * @param success  true indicating a successful operation
-     * @param message  an informational message about the operation (maybe null)
-     * @param data     the payload data to be returned (maybe null)
-     * @param path     the request path that was accessed
-     * @param status   the HTTP status code for the response
-     */
-    public ApiResponse(boolean success, String message, T data, String path, Integer status) {
-        this.success = success;
-        this.message = message;
-        this.data = data;
-        this.error = null;
-        this.timestamp = LocalDateTime.now();
-        this.path = path;
-        this.status = status;
-    }
-
     // Static factory methods for convenience
 
     /**
@@ -150,18 +106,6 @@ public class ApiResponse<T> {
      */
     public static <T> ApiResponse<T> error(String errorMessage) {
         return new ApiResponse<>(false, errorMessage);
-    }
-
-    /**
-     * Creates an error ApiResponse with the given error message, path, and status.
-     * @param <T> the type of the data payload
-     * @param errorMessage a description of the error that occurred
-     * @param path the request path that was accessed
-     * @param status the HTTP status code for the response
-     * @return an ApiResponse indicating failure with the provided error message, path, and status
-     */
-    public static <T> ApiResponse<T> error(String errorMessage, String path, Integer status) {
-        return new ApiResponse<>(false, errorMessage, path, status);
     }
 
     /**
@@ -204,12 +148,8 @@ public class ApiResponse<T> {
     }
 
     public LocalDateTime getTimestamp() { return timestamp; }
-    public String getPath() { return path; }
-    public Integer getStatus() { return status; }
 
     // Setters for additional context
-    public void setPath(String path) { this.path = path; }
-    public void setStatus(Integer status) { this.status = status; }
 
     /**
      * Creates a successful ApiResponse with pagination details included in the data.

@@ -12,45 +12,44 @@ import java.time.format.DateTimeFormatter;
 public class LogUtil {
 
     private static final DateTimeFormatter TIMESTAMP_FORMAT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+    private static final String RESET = "\u001B[0m";
+    private static final String RED = "\u001B[31m";
+    private static final String YELLOW = "\u001B[33m";
+    private static final String GREEN = "\u001B[32m";
+    private static final String PURPLE = "\u001B[35m";
 
     /**
      * Logs an error message with optional exception details.
      * @param component the component or module where the error occurred
-     * @param operation the specific operation or function where the error occurred
+     * @param method the specific operation or function where the error occurred
      * @param message a descriptive error message
      * @param throwable the exception that was thrown (can be null)
      */
-    public static void logError(String component, String operation, String message, Throwable throwable) {
-        String timestamp = LocalDateTime.now().format(TIMESTAMP_FORMAT);
-        System.err.printf("[%s] ERROR [%s:%s] %s%n", timestamp, component, operation, message);
+    public static void logError(String component, String method, String message, Throwable throwable) {
+        System.err.println(formatLog("ERROR", component, method, message, RED));
         if (throwable != null) {
-            System.err.printf(
-                "[%s] ERROR [%s:%s] Exception: %s%n",
-                timestamp, component, operation, throwable.getMessage()
-            );
+            System.err.println(formatLog("ERROR", component, method, throwable.getMessage(), RED));
         }
     }
 
     /**
      * Logs a warning message.
      * @param component the component or module where the warning occurred
-     * @param operation the specific operation or function where the warning occurred
+     * @param method the specific operation or function where the warning occurred
      * @param message a descriptive warning message
      */
-    public static void logWarning(String component, String operation, String message) {
-        String timestamp = LocalDateTime.now().format(TIMESTAMP_FORMAT);
-        System.out.printf("[%s] WARNING [%s:%s] %s%n", timestamp, component, operation, message);
+    public static void logWarning(String component, String method, String message) {
+        System.out.println(formatLog("WARNING", component, method, message, YELLOW));
     }
 
     /**
      * Logs an informational message.
      * @param component the component or module where the info is logged
-     * @param operation the specific operation or function related to the info
+     * @param method the specific operation or function related to the info
      * @param message a descriptive informational message
      */
-    public static void logInfo(String component, String operation, String message) {
-        String timestamp = LocalDateTime.now().format(TIMESTAMP_FORMAT);
-        System.out.printf("[%s] INFO [%s:%s] %s%n", timestamp, component, operation, message);
+    public static void logInfo(String component, String method, String message) {
+        System.out.println(formatLog("INFO", component, method, message, GREEN));
     }
 
     /**
@@ -60,7 +59,10 @@ public class LogUtil {
      */
     public static void logSecurity(String component, String message) {
         String timestamp = LocalDateTime.now().format(TIMESTAMP_FORMAT);
-        System.out.printf("[%s] SECURITY [%s] %s%n", timestamp, component, message);
+        System.err.printf(
+                "%s[%s] [SECURITY] [%s] %s%s%n",
+            RED, timestamp, component, message, RESET
+        );
     }
 
     /**
@@ -80,13 +82,18 @@ public class LogUtil {
     /**
      * Logs an unauthorized access attempt with details about the component, operation, and reason.
      * @param component the component or module where the unauthorized access was attempted
-     * @param operation the specific operation or function that was attempted
-     * @param details additional details about the unauthorized access attempt
+     * @param method the specific operation or function that was attempted
+     * @param message additional details about the unauthorized access attempt
      */
-    public static void logUnauthorizedAccess(String component, String operation, String details) {
+    public static void logUnauthorizedAccess(String component, String method, String message) {
+        System.out.println(formatLog("UNAUTHORIZED", component, method, message, PURPLE));
+    }
+
+    private static String formatLog(String level, String component, String method, String message, String color) {
         String timestamp = LocalDateTime.now().format(TIMESTAMP_FORMAT);
-        System.out.printf("[%s] SECURITY [%s:%s] Unauthorized access: %s%n",
-            timestamp, component, operation, details
+        return String.format(
+            "%s[%s] [%s] [%s.%s] %s%s",
+            color, timestamp, level, component, method, message, RESET
         );
     }
 }

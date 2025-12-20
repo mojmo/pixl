@@ -108,6 +108,10 @@ public class ArtworkServlet extends BaseServlet {
             Long userId = requireAuthentication(request);
 
             Artwork artwork = extractRequestObject(request, Artwork.class);
+
+            // sanitize inputs before validation
+            artwork.setTitle(sanitize(artwork.getTitle()));
+            artwork.setDescription(sanitize(artwork.getDescription()));
             validateArtworkForCreation(artwork);
 
             artwork.setUserId(userId);
@@ -185,6 +189,15 @@ public class ArtworkServlet extends BaseServlet {
             }
 
             Artwork artwork = extractRequestObject(request, Artwork.class);
+
+            // sanitize inputs
+            if (artwork.getTitle() != null) {
+                artwork.setTitle(sanitize(artwork.getTitle()));
+            }
+            if (artwork.getDescription() != null) {
+                artwork.setDescription(sanitize(artwork.getDescription()));
+            }
+
             validateArtworkForUpdate(artwork);
 
             artwork.setId(artworkId);
@@ -397,7 +410,7 @@ public class ArtworkServlet extends BaseServlet {
             try {
                 Long userId = requireAuthentication(request);
                 Map<String, Object> sessionInfo = getUserSessionInfo(request);
-                boolean isAdmin = Boolean.parseBoolean((String) sessionInfo.get("isAdmin"));
+                boolean isAdmin = Boolean.parseBoolean(sessionInfo.get("isAdmin").toString());
                 // allow access if owner or admin
                 if (!artwork.getUserId().equals(userId) && !isAdmin) {
                     throw new ForbiddenException("You don't have permission to view this artwork");
@@ -444,11 +457,11 @@ public class ArtworkServlet extends BaseServlet {
      * @throws ValidationException if validation fails
      */
     private void validateArtworkForCreation(Artwork artwork) throws ValidationException {
-        ValidationUtil.validateStringNotEmpty(sanitize(artwork.getTitle()), "Title");
+        ValidationUtil.validateStringNotEmpty(artwork.getTitle(), "Title");
         ValidationUtil.validateStringLength(artwork.getTitle(), "Title", 1, 100);
 
         if (artwork.getDescription() != null) {
-            ValidationUtil.validateStringLength(sanitize(artwork.getDescription()), "Description", 0, 1000);
+            ValidationUtil.validateStringLength(artwork.getDescription(), "Description", 0, 1000);
         }
 
         ValidationUtil.validateStringNotEmpty(artwork.getPixelData(), "Pixel data");

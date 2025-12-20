@@ -18,8 +18,10 @@ import java.io.StringWriter;
  * This filter intercepts all requests and checks for unhandled exceptions or 404 errors on API endpoints.
  * If an exception or 404 error is encountered, it logs the error and sends an appropriate response.
  */
-@WebFilter("/*")
+@WebFilter(urlPatterns = "/*", dispatcherTypes = {DispatcherType.REQUEST, DispatcherType.ERROR})
 public class ErrorHandlerFilter implements Filter {
+
+    private static final String COMPONENT_NAME = "ErrorHandlerFilter";
 
     /**
      * Handles the filtering of requests and responses.
@@ -70,7 +72,7 @@ public class ErrorHandlerFilter implements Filter {
             
         } catch (Exception e) {
             LogUtil.logError(
-                "ErrorHandlerFilter", "doFilter", 
+                COMPONENT_NAME, "doFilter", 
                 "Unhandled exception in request processing", e
             );
             
@@ -80,6 +82,7 @@ public class ErrorHandlerFilter implements Filter {
                     "An unexpected error occurred. Please try again later."
                 );
             } else {
+                httpResponse.sendError(responseCapture.getStatus(), e.getMessage());
                 throw e;
             }
         }
@@ -96,7 +99,7 @@ public class ErrorHandlerFilter implements Filter {
         String uri = request.getRequestURI();
 
         LogUtil.logWarning(
-            "ErrorHandlerFilter", "handleApiNotFound",
+            COMPONENT_NAME, "handleApiNotFound",
             String.format("API endpoint not found: %s %s", method, uri)
         );
 

@@ -153,7 +153,14 @@ public abstract class BaseServlet extends HttpServlet {
         return SecurityUtil.sanitizeInput(input);
     }
 
-    protected void validateSqlSafe(String input, String fieldName) throws ValidationException {
+    /**
+     * Validates input for SL injection attempts
+     * @param input the input string to validate
+     * @param fieldName the name of the field
+     * @throws ValidationException if SQL injection attempt is detected
+     * @return true if input appears safe
+     */
+    protected boolean validateSqlSafe(String input, String fieldName) throws ValidationException {
         if (!SecurityUtil.isSqlSafe(input)) {
             LogUtil.logWarning(
                     getClass().getSimpleName(), "validateSqlSafe",
@@ -161,6 +168,7 @@ public abstract class BaseServlet extends HttpServlet {
             );
             throw new ValidationException("Invalid input detected in " + fieldName);
         }
+        return true;
     }
 
     /**

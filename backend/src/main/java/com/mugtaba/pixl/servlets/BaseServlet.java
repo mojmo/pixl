@@ -3,11 +3,11 @@ package com.mugtaba.pixl.servlets;
 import com.mugtaba.pixl.exceptions.ForbiddenException;
 import com.mugtaba.pixl.exceptions.UnauthorizedException;
 import com.mugtaba.pixl.exceptions.ValidationException;
-import com.mugtaba.pixl.models.ApiResponse;
 import com.mugtaba.pixl.util.JsonUtil;
 import com.mugtaba.pixl.util.LogUtil;
 import com.mugtaba.pixl.util.ValidationUtil;
 import com.mugtaba.pixl.util.SecurityUtil;
+import com.mugtaba.pixl.util.ResponseUtil;
 import jakarta.servlet.http.HttpServlet;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -22,6 +22,8 @@ import java.util.Map;
  * Handles JSON communication, standardized responses, and common utilities.
  */
 public abstract class BaseServlet extends HttpServlet {
+
+    // ==================== REQUEST EXTRACTION ====================
 
     /**
      * Extracts request data from JSON body only.
@@ -89,6 +91,8 @@ public abstract class BaseServlet extends HttpServlet {
         }
     }
 
+    // ==================== SESSION MANAGEMENT ====================
+
     /**
      * Retrieves the user ID from the current session.
      * 
@@ -128,6 +132,8 @@ public abstract class BaseServlet extends HttpServlet {
         return sessionInfo;
     }
 
+    // ==================== AUTHORIZATION ====================
+
     /**
      * Validates the current user owns the resource
      * @param request the HttpServletRequest
@@ -136,13 +142,32 @@ public abstract class BaseServlet extends HttpServlet {
      */
     protected void validateOwnership(HttpServletRequest request, Long resourceOwnerId) throws ForbiddenException {
         Map<String, Object> sessionInfo = getUserSessionInfo(request);
-        boolean isAdmin = sessionInfo.get("isAdmin") == null;
+        boolean isAdmin = sessionInfo.get("isAdmin") != null && Boolean.parseBoolean(sessionInfo.get("isAdmin").toString());
         Long currentUserId = getUserIdFromSession(request);
 
         if (!currentUserId.equals(resourceOwnerId) && !isAdmin) {
             throw new ForbiddenException("You don't have permission to access this resource");
         }
     }
+
+    /**
+     * Validates user authentication and returns user ID.
+     * 
+     * @param request the HttpServletRequest object
+     * @return the authenticated user ID
+     * @throws UnauthorizedException if user is not authenticated
+     */
+    protected Long requireAuthentication(HttpServletRequest request) throws UnauthorizedException {
+        Long userId = getUserIdFromSession(request);
+        if (userId == null) {
+            throw new UnauthorizedException(
+                "Authentication required. Please log in to access this resource."
+            );
+        }
+        return userId;
+    }
+
+    // ==================== INPUT VALIDATION & SECURITY ====================
 
     /**
      * Sanitize string input to prevent XSS attacks
@@ -171,22 +196,7 @@ public abstract class BaseServlet extends HttpServlet {
         return true;
     }
 
-    /**
-     * Validates user authentication and returns user ID.
-     * 
-     * @param request the HttpServletRequest object
-     * @return the authenticated user ID
-     * @throws UnauthorizedException if user is not authenticated
-     */
-    protected Long requireAuthentication(HttpServletRequest request) throws UnauthorizedException {
-        Long userId = getUserIdFromSession(request);
-        if (userId == null) {
-            throw new UnauthorizedException(
-                "Authentication required. Please log in to access this resource."
-            );
-        }
-        return userId;
-    }
+    // ==================== RESPONSE METHODS ====================
 
     /**
      * Sends a success response with the specified message and data.
@@ -197,11 +207,7 @@ public abstract class BaseServlet extends HttpServlet {
      * @throws IOException if an error occurs during response writing
      */
     protected void sendSuccessResponse(HttpServletResponse response, String message, Object data) throws IOException {
-        response.setContentType("application/json");
-        response.setCharacterEncoding("UTF-8");
-
-        ApiResponse<Object> apiResponse = ApiResponse.success(message, data);
-        JsonUtil.writeJson(response.getWriter(), apiResponse);
+        ResponseUtil.sendSuccess(response, message, data);
     }
 
     /**
@@ -212,7 +218,7 @@ public abstract class BaseServlet extends HttpServlet {
      * @throws IOException if an error occurs during response writing
      */
     protected void sendSuccessResponse(HttpServletResponse response, String message) throws IOException {
-        sendSuccessResponse(response, message, null);
+        ResponseUtil.sendSuccess(response, message);
     }
 
     /**
@@ -224,12 +230,7 @@ public abstract class BaseServlet extends HttpServlet {
      * @throws IOException if an error occurs during response writing
      */
     protected void sendErrorResponse(HttpServletResponse response, int statusCode, String message) throws IOException {
-        response.setStatus(statusCode);
-        response.setContentType("application/json");
-        response.setCharacterEncoding("UTF-8");
-
-        ApiResponse<Object> apiResponse = ApiResponse.error(message);
-        JsonUtil.writeJson(response.getWriter(), apiResponse);
+        ResponseUtil.sendError(response, statusCode, message);
     }
 
     /**
@@ -241,10 +242,10 @@ public abstract class BaseServlet extends HttpServlet {
      * @throws IOException if an error occurs during response writing
      */
     protected void sendCreatedResponse(HttpServletResponse response, String message, Object data) throws IOException {
-        response.setStatus(HttpServletResponse.SC_CREATED);
-        sendSuccessResponse(response, message, data);
+        ResponseUtil.sendCreated(response, message, data);
     }
 
+    // ==================== PAGINATION ====================
 
     /**
      * Creates pagination information for responses.

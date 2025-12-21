@@ -100,9 +100,9 @@ public class AdminServlet extends BaseServlet {
 
         try {
             if (pathInfo.startsWith("/users/")) {
-                handleDeleteUser(request, response, pathInfo);
+                handleDeleteUser(response, pathInfo);
             } else if (pathInfo.startsWith("/artworks/")) {
-                handleDeleteArtwork(request, response, pathInfo);
+                handleDeleteArtwork(response, pathInfo);
             } else if (pathInfo.equals("/cache")) {
                 handleClearCache(response);
             } else {
@@ -280,14 +280,14 @@ public class AdminServlet extends BaseServlet {
 
     /**
      * Handle deleting a user
-     * @param request HttpServletRequest object
+
      * @param response HttpServletResponse object
      * @param pathInfo the path info from the request to extract user ID
      * @throws PixlException if there is a problem with the request
      * @throws SQLException if there is a problem with the database
      * @throws IOException if there is a problem writing the response
      */
-    private void handleDeleteUser(HttpServletRequest request, HttpServletResponse response, String pathInfo) throws PixlException, SQLException, IOException {
+    private void handleDeleteUser(HttpServletResponse response, String pathInfo) throws PixlException, SQLException, IOException {
 
         // extract user ID from path
         String idStr = pathInfo.substring(7).trim(); // remove "/users/"
@@ -314,14 +314,13 @@ public class AdminServlet extends BaseServlet {
 
     /**
      * Handle deleting an artwork
-     * @param request HttpServletRequest object
      * @param response HttpServletResponse object
      * @param pathInfo the path info from the request to extract artwork ID
      * @throws PixlException if there is a problem with the request
      * @throws SQLException if there is a problem with the database
      * @throws IOException if there is a problem writing the response
      */
-    private void handleDeleteArtwork(HttpServletRequest request, HttpServletResponse response, String pathInfo) throws PixlException, SQLException, IOException {
+    private void handleDeleteArtwork(HttpServletResponse response, String pathInfo) throws PixlException, SQLException, IOException {
 
         // extract artwork ID from path
         String idStr = pathInfo.substring(10).trim(); // Remove "/artworks/"

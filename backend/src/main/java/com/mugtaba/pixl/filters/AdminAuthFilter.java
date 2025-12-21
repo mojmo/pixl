@@ -13,9 +13,9 @@ import java.io.IOException;
 
 /**
  * Filter that ensures only authenticated admin users can access admin endpoints.
- * Applied to all /api/admin/* routes.
+ * Applied to all /api/v1/admin/* routes.
  */
-@WebFilter("/api/admin/*")
+@WebFilter("/api/v1/admin/*")
 public class AdminAuthFilter implements Filter {
 
     private static final String COMPONENT_NAME = "AdminAuthFilter";

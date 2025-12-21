@@ -3,8 +3,6 @@ package com.mugtaba.pixl.models;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.time.LocalDateTime;
-import java.util.HashMap;
-import java.util.Map;
 
 /**
  * A generic response wrapper for API responses that standardizes the structure
@@ -149,31 +147,4 @@ public class ApiResponse<T> {
 
     public LocalDateTime getTimestamp() { return timestamp; }
 
-    // Setters for additional context
-
-    /**
-     * Creates a successful ApiResponse with pagination details included in the data.
-     *
-     * @param message      an informational message about the operation
-     * @param data         the payload data to be returned
-     * @param currentPage  the current page number
-     * @param totalPages   the total number of pages available
-     * @param totalItems   the total number of items across all pages
-     * @param <T>          the type of the data payload
-     * @return an ApiResponse containing the data and pagination details
-     */
-    @SuppressWarnings("unchecked")
-    public static <T> ApiResponse<T> successWithPagination(String message, T data, int currentPage, int totalPages, long totalItems) {
-        Map<String, Object> responseData = new HashMap<>();
-        responseData.put("items", data);
-        responseData.put("pagination", Map.of(
-            "currentPage", currentPage,
-            "totalPages", totalPages,
-            "totalItems", totalItems,
-            "hasNext", currentPage < totalPages,
-            "hasPrevious", currentPage > 1
-        ));
-
-        return success(message, (T) responseData);
-    }
 }

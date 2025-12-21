@@ -1,10 +1,9 @@
 package com.mugtaba.pixl.filters;
 
-import com.mugtaba.pixl.models.ApiResponse;
 import com.mugtaba.pixl.util.CacheUtil;
-import com.mugtaba.pixl.util.JsonUtil;
 import com.mugtaba.pixl.util.LogUtil;
 import com.mugtaba.pixl.util.SecurityUtil;
+import com.mugtaba.pixl.util.ResponseUtil;
 import jakarta.servlet.*;
 import jakarta.servlet.annotation.WebFilter;
 import jakarta.servlet.http.HttpServletRequest;
@@ -26,6 +25,7 @@ public class RateLimitFilter implements Filter {
     private static final int MAX_REQUESTS_PER_MINUTE = 60;
     private static final int MAX_LOGIN_ATTEMPTS_PER_HOUR = 5;
     private static final int LOCKOUT_DURATION_MINUTES = 30;
+    private static final int LOCKOUT_DURATION_SECONDS = 18000; // 30 minutes
 
     // cache keys
     private static final String RATE_LIMIT_KEY = "rate_limit_%s";
@@ -47,7 +47,7 @@ public class RateLimitFilter implements Filter {
                     COMPONENT_NAME, "doFilter",
                     String.format("Blocked request from locked out IP: %s, URI: %s", clientIp, requestUri)
             );
-            sendRateLimitResponse(httpResponse, "Too many failed attempts. Please try again later.");
+            ResponseUtil.sendRateLimitExceeded(httpResponse, "Too many failed attempts. Please try again later.", LOCKOUT_DURATION_SECONDS);
             return;
         }
 
@@ -57,7 +57,7 @@ public class RateLimitFilter implements Filter {
                     COMPONENT_NAME, "doFilter",
                     String.format("Rate limit exceeded for IP: %s, URI: %s", clientIp, requestUri)
             );
-            sendRateLimitResponse(httpResponse, "Too many requests. Please slow down.");
+            ResponseUtil.sendRateLimitExceeded(httpResponse, "Too many requests. Please slow down.", LOCKOUT_DURATION_SECONDS);
             return;
         }
 
@@ -124,23 +124,6 @@ public class RateLimitFilter implements Filter {
                     );
             }
         }
-    }
-
-    /**
-     * Sends a 429 Too many requests response with the specified message.
-     * @param response the HttpServletResponse object
-     * @param message the error message to include in the response
-     * @throws IOException if an error occurs during response writing
-     */
-    private void sendRateLimitResponse(HttpServletResponse response, String message) throws IOException {
-        response.setStatus(429); // Too many requests
-        response.setContentType("application/json");
-        response.setCharacterEncoding("UTF-8");
-
-        response.setHeader("Retry-After", "60");
-
-        ApiResponse<Object> apiResponse = ApiResponse.error(message);
-        JsonUtil.writeJson(response.getWriter(), apiResponse);
     }
 
     /**

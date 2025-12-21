@@ -1,8 +1,7 @@
 package com.mugtaba.pixl.filters;
 
-import com.mugtaba.pixl.models.ApiResponse;
-import com.mugtaba.pixl.util.JsonUtil;
 import com.mugtaba.pixl.util.LogUtil;
+import com.mugtaba.pixl.util.ResponseUtil;
 import jakarta.servlet.*;
 import jakarta.servlet.annotation.WebFilter;
 import jakarta.servlet.http.HttpServletRequest;
@@ -77,8 +76,8 @@ public class ErrorHandlerFilter implements Filter {
             );
             
             if (httpRequest.getRequestURI().startsWith("/api/")) {
-                sendApiErrorResponse(
-                    httpResponse, HttpServletResponse.SC_INTERNAL_SERVER_ERROR,
+                ResponseUtil.sendInternalError(
+                    httpResponse,
                     "An unexpected error occurred. Please try again later."
                 );
             } else {
@@ -105,23 +104,7 @@ public class ErrorHandlerFilter implements Filter {
 
         String message = String.format("The API endpoint '%s %s' not found. Please check the URL and try again.", method, uri);
 
-        sendApiErrorResponse(response, HttpServletResponse.SC_NOT_FOUND, message);
-    }
-
-    /**
-     * Sends a standardized JSON error response for API requests.
-     * @param response the HttpServletResponse object
-     * @param statusCode the HTTP status code to set in the response
-     * @param message the error message to include in the response body
-     * @throws IOException if an input or output exception occurs
-     */
-    private void sendApiErrorResponse(HttpServletResponse response, int statusCode, String message) throws IOException {
-        response.setStatus(statusCode);
-        response.setContentType("application/json");
-        response.setCharacterEncoding("UTF-8");
-
-        ApiResponse<Object> apiResponse = ApiResponse.error(message);
-        JsonUtil.writeJson(response.getWriter(), apiResponse);
+        ResponseUtil.sendNotFound(response, message);
     }
 
     /**

@@ -365,7 +365,7 @@ public class AdminService {
         user.setUsername(rs.getString("username"));
         user.setEmail(rs.getString("email"));
         user.setPasswordHash(rs.getString("password_hash"));
-        user.setIsAdmin(rs.getBoolean("is_admin"));
+        user.setAdmin(rs.getBoolean("is_admin"));
         user.setCreatedAt(rs.getTimestamp("created_at").toLocalDateTime());
         user.setUpdatedAt(rs.getTimestamp("updated_at").toLocalDateTime());
         return user;

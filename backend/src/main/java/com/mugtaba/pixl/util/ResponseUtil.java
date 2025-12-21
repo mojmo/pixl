@@ -106,6 +106,7 @@ public class ResponseUtil {
      */
     public static void sendRateLimitExceeded(HttpServletResponse response, String message, int retryAfterSeconds) throws IOException {
         response.setHeader("Retry-After", String.valueOf(retryAfterSeconds));
+        sendError(response, 429, message);
     }
 
     /**

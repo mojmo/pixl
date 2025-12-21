@@ -15,7 +15,4 @@ public class ForbiddenException extends PixlException {
         );
     }
 
-    public ForbiddenException(String userMessage, String logMessage) {
-        super(HttpServletResponse.SC_FORBIDDEN, userMessage, logMessage);
-    }
 }

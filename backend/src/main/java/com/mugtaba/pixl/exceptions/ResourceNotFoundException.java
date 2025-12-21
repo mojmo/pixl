@@ -22,18 +22,4 @@ public class ResourceNotFoundException extends PixlException {
         );
     }
 
-    /**
-     * Constructor for ResourceNotFoundException with detailed log information.
-     * This exception is initialized with a user-friendly message and additional log details,
-     * defaulting to HTTP status code 404.
-     * @param resource the name or identifier of the resource that was not found
-     * @param details additional details for logging purposes
-     */
-    public ResourceNotFoundException(String resource, String details) {
-        super(
-            HttpServletResponse.SC_NOT_FOUND,
-            resource + " not found",
-            "Resource not found: " + resource + " - " + details
-        );
-    }
 }

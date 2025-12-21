@@ -23,22 +23,6 @@ public class PixlException extends Exception{
         this.logMessage = logMessage;
     }
 
-    /**
-     * Constructor for PixlException with a cause.
-     * This exception is designed to carry an HTTP status code, a user-friendly message,
-     * and a log message for internal use, along with the original cause of the exception.
-     * @param statusCode HTTP status code associated with the exception
-     * @param userMessage a message intended for end-users
-     * @param logMessage a message intended for logging purposes
-     * @param cause the original exception that caused this exception to be thrown
-     */
-    public PixlException(int statusCode, String userMessage, String logMessage, Throwable cause) {
-        super(logMessage, cause);
-        this.statusCode = statusCode;
-        this.userMessage = userMessage;
-        this.logMessage = logMessage;
-    }
-
     public int getStatusCode() { return statusCode; }
     public String getUserMessage() { return userMessage; }
     public String getLogMessage() { return logMessage; }

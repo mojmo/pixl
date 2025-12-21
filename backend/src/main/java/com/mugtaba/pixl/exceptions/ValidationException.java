@@ -18,14 +18,4 @@ public class ValidationException extends PixlException {
         super(HttpServletResponse.SC_BAD_REQUEST, userMessage, "Validation failed: " + userMessage);
     }
 
-    /**
-     * Constructor for ValidationException with detailed log information.
-     * This exception is initialized with a user-friendly message and additional log details,
-     * defaulting to HTTP status code 400.
-     * @param userMessage a message intended for end-users
-     * @param logDetails additional details for logging purposes
-     */
-    public ValidationException(String userMessage, String logDetails) {
-        super(HttpServletResponse.SC_BAD_REQUEST, userMessage, "Validation failed: " + logDetails);
-    }
 }

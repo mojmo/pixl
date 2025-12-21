@@ -43,8 +43,6 @@ public class User {
     public User(String username, String email) {
         this.username = username;
         this.email = email;
-        this.createdAt = LocalDateTime.now();
-        this.updatedAt = LocalDateTime.now();
     }
 
     /** Full constructor with all fields
@@ -55,7 +53,8 @@ public class User {
      * @param salt The salt used for hashing
      */
     public User(String username, String email, String passwordHash, String salt) {
-        this(username, email);
+        this.username = username;
+        this.email = email;
         this.passwordHash = passwordHash;
         this.salt = salt;
     }
@@ -84,8 +83,8 @@ public class User {
 
     @JsonGetter("isAdmin")
     @JsonInclude(JsonInclude.Include.NON_DEFAULT)  // Only include if true
-    public Boolean isAdmin() { return isAdmin; }
-    public void setIsAdmin(Boolean admin) { isAdmin = admin; }
+    public boolean isAdmin() { return isAdmin; }
+    public void setAdmin(boolean admin) { isAdmin = admin; }
 
     /**
      * Validates user data for registration.
@@ -140,38 +139,33 @@ public class User {
         publicUser.setEmail(this.email);
         publicUser.setCreatedAt(this.createdAt);
         publicUser.setUpdatedAt(this.updatedAt);
-
-        if (this.isAdmin) {
-            publicUser.setIsAdmin(true);
-        }
+        publicUser.setAdmin(this.isAdmin);
 
         return publicUser;
     }
 
     /**
-     * Overrides equals to compare users based on their unique ID.
-     * This ensures that two User objects with the same ID are considered equal,
-     * regardless of their other fields.
+     * Overrides equals to compare User objects based on their unique ID, username, and email.
      * 
      * @param o The object to compare with
-     * @return true if the objects are equal, false otherwise
+     * @return true if equal, false otherwise
      */
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         User user = (User) o;
-        return Objects.equals(id, user.id);
+        return Objects.equals(id, user.id) &&
+                Objects.equals(username, user.username) &&
+                Objects.equals(email, user.email);
     }
 
     /**
-     * Overrides hashCode to generate a hash code based on the unique ID.
-     * 
-     * @return The hash code value
+     * Overrides hashCode to generate a hash code based on the unique ID, username, and email.
      */
     @Override
     public int hashCode() {
-        return Objects.hash(id);
+        return Objects.hash(id, username, email);
     }
 
     /**
@@ -186,6 +180,8 @@ public class User {
                 ", username='" + username + '\'' +
                 ", email='" + email + '\'' +
                 ", createdAt=" + createdAt +
+                ", updatedAt=" + updatedAt +
+                ", isAdmin=" + isAdmin +
                 '}';
     }
 }

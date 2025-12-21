@@ -5,7 +5,17 @@ import jakarta.servlet.*;
 import jakarta.servlet.annotation.WebListener;
 
 /**
- * Servlet context listener for application configuration
+ * Servlet context listener for application-wide configuration.
+ * 
+ * Filter Execution Order:
+ * 1. ApiVersionFilter - Validates API version in URL
+ * 2. SecurityHeadersFilter - Adds security headers
+ * 3. CorsFilter - Handles CORS for cross-origin requests
+ * 4. RateLimitFilter - Rate limiting and brute force protection
+ * 5. AdminAuthFilter - Admin authorization (for /admin/* only)
+ * 6. ErrorHandlerFilter - Global error handling
+ * 
+ * @version 1.0
  */
 @WebListener
 public class ServletConfig implements ServletContextListener {
@@ -25,6 +35,7 @@ public class ServletConfig implements ServletContextListener {
 
         context.setAttribute("app.name", "Pixl API");
         context.setAttribute("app.version", "1.0.0");
+        context.setAttribute("app.api.version", "v1");
         context.setAttribute("app.environment", getEnvironment());
 
         LogUtil.logInfo(

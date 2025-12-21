@@ -4,7 +4,6 @@ import com.mugtaba.pixl.util.CacheUtil;
 import com.mugtaba.pixl.util.LogUtil;
 
 import java.security.SecureRandom;
-import java.time.Duration;
 import java.time.LocalDateTime;
 
 /**
@@ -123,46 +122,6 @@ public class OtpService {
 
             return OtpValidationResult.INVALID;
         }
-    }
-
-    /**
-     * Revokes (deletes) OTP for the given email and type
-     * @param email user's email address
-     * @param type OTP type
-     */
-    public void revokeOtp(String email, OtpType type) {
-        String otpCacheKey = String.format(CACHE_OTP_KEY, email, type.getValue());
-
-        CacheUtil.remove(otpCacheKey);
-
-        LogUtil.logInfo(
-            COMPONENT_NAME, "revokeOtp",
-            String.format("OTP revoked for email: %s, type: %s", email, type.getValue()
-        ));
-    }
-
-    /**
-     * Gets the remaining time in minutes before the OTP expires.
-     * @param email user's email address
-     * @param type the OTP type (see OtpType enum)
-     * @return remaining minutes, or -1 if no OTP found
-     */
-    public int getOtpRemainingMinutes(String email, OtpType type) {
-        String otpCacheKey = String.format(CACHE_OTP_KEY, email, type.getValue());
-
-        OtpData otpData = CacheUtil.get(otpCacheKey, OtpData.class);
-        if (otpData == null) {
-            return -1; // No OTP found
-        }
-
-        LocalDateTime now = LocalDateTime.now();
-        LocalDateTime expiry = otpData.getGeneratedAt().plusMinutes(OTP_EXPIRY_MINUTES);
-
-        if (now.isAfter(expiry)) {
-            return 0; // OTP expired
-        }
-
-        return (int) Duration.between(now, expiry).toMinutes();
     }
 
     /**

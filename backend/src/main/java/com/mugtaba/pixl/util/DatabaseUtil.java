@@ -124,53 +124,6 @@ public class DatabaseUtil {
     }
 
     /**
-     * Gets database connection information for monitoring
-     * @return connection pool stats
-     */
-    public static String getConnectionPoolInfo() {
-        if (dataSource == null) {
-            return "Connection pool not initialized";
-        }
-
-        return String.format(
-            "Pool Stats = Active: %d, Idle: %d, Total: %d, Waiting: %d",
-            dataSource.getHikariPoolMXBean().getActiveConnections(),
-            dataSource.getHikariPoolMXBean().getIdleConnections(),
-            dataSource.getHikariPoolMXBean().getTotalConnections(),
-            dataSource.getHikariPoolMXBean().getThreadsAwaitingConnection()
-        );
-    }
-
-    /**
-     * Checks if the database connection pool is healthy
-     * @return true if healthy, false otherwise
-     */
-    public static boolean isHealthy() {
-        if (dataSource == null) {
-            return false;
-        }
-
-        try (Connection conn = dataSource.getConnection()) {
-            return conn != null && conn.isValid(5);
-        } catch (SQLException e) {
-            System.err.println("Health check failed: " + e.getMessage());
-            return false;
-        }
-    }
-
-    /**
-     * Gracefully shuts down the connection pool
-     */
-    public static synchronized void shutdown() {
-        if (dataSource != null && !dataSource.isClosed()) {
-            System.out.println("Shutting down database connection pool");
-            dataSource.close();
-            dataSource = null;
-            System.out.println("Database connection pool shutdown complete");
-        }
-    }
-
-    /**
      * Utility method to get environment variable with default
      * @param key the environment variable key
      * @param defaultValue the default value if the environment key is not set or invalid

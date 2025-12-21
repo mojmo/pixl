@@ -98,33 +98,4 @@ public class SecurityUtil {
         return ip;
     }
 
-    /**
-     * Validates email format.
-     * @param email the email to validate
-     * @return true if valid, false otherwise
-     */
-    public static boolean isValidEmail(String email) {
-        if (email == null || email.isEmpty()) {
-            return false;
-        }
-
-        String emailRegex = "^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$";
-        return Pattern.matches(emailRegex, email);
-    }
-
-    /**
-     * Checks if a string contains only alphanumeric characters and allowed special chars.
-     * @param input the input string
-     * @param allowedChars additional allowed characters
-     * @return true if valid, false otherwise
-     */
-    public static boolean isAlphanumeric(String input, String allowedChars) {
-        if (input == null || input.isEmpty()) {
-            return false;
-        }
-
-        String pattern = "^[a-zA-Z0-9" + Pattern.quote(allowedChars) + "]+$";
-        return Pattern.matches(pattern, input);
-    }
-
 }

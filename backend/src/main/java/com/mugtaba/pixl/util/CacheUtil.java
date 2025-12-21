@@ -144,15 +144,6 @@ public class CacheUtil {
     }
 
     /**
-     * Shutdown cache cleanup executor and clear cache (for graceful shutdown).
-     */
-    public static void shutdown() {
-        cleanupExecutor.shutdown();
-        clear();
-        LogUtil.logInfo("CacheUtil", "shutdown", "Cache shutdown completed");
-    }
-
-    /**
      * Cache entry wrapper with value and TTL support.
      */
     private record CacheEntry(Object value, LocalDateTime expiry) {

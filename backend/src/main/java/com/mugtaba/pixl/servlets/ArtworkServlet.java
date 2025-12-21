@@ -112,6 +112,8 @@ public class ArtworkServlet extends BaseServlet {
             // sanitize inputs before validation
             artwork.setTitle(sanitize(artwork.getTitle()));
             artwork.setDescription(sanitize(artwork.getDescription()));
+            validateSqlSafe(artwork.getTitle(), "title");
+            validateSqlSafe(artwork.getTitle(), "description");
             validateArtworkForCreation(artwork);
 
             artwork.setUserId(userId);
@@ -180,7 +182,7 @@ public class ArtworkServlet extends BaseServlet {
             Long artworkId = ValidationUtil.parseIdParameter(pathInfo.substring(1), "artwork");
 
             // Check ownership
-            if (!artworkService.isArtworkOwner(artworkId, userId)) {
+            if (artworkService.isOwner(artworkId, userId)) {
                 LogUtil.logUnauthorizedAccess(
                     COMPONENT_NAME, "doPut",
                     String.format("User %d attempted to update artwork %d", userId, artworkId)

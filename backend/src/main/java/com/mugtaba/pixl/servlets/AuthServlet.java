@@ -168,7 +168,7 @@ public class AuthServlet extends BaseServlet {
         }
 
         // Validate email format
-        if (!ValidationUtil.isValidEmail(email)) {
+        if (ValidationUtil.isValidEmailFormat(email)) {
             throw new ValidationException("Please provide a valid email address");
         }
 
@@ -351,7 +351,7 @@ public class AuthServlet extends BaseServlet {
             throw new ValidationException("Username can only contain letters, numbers, and underscores");
         }
 
-        if (!ValidationUtil.isValidEmail(newEmail)) {
+        if (ValidationUtil.isValidEmailFormat(newEmail)) {
             throw new ValidationException("Please provide a valid email address");
         }
 

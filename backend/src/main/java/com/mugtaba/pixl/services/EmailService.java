@@ -66,7 +66,7 @@ public class EmailService {
      * @return true if the email was sent successfully, false otherwise
      */
     public boolean sendPasswordResetOTP(String toEmail, String username, String otp, int expiryMinutes) {
-        if (!isEmailConfigured()) {
+        if (isConfiguredEmail()) {
             LogUtil.logError(
                 COMPONENT_NAME, "sendPasswordResetOTP",
                 "Email service not configured - missing SMTP credentials", null
@@ -105,10 +105,10 @@ public class EmailService {
      * Checks if email service is configured
      * @return true if email service is configured, false otherwise
      */
-    public boolean isEmailConfigured() {
-        return SMTP_USERNAME != null && !SMTP_USERNAME.trim().isEmpty() &&
-            SMTP_PASSWORD != null && !SMTP_PASSWORD.trim().isEmpty() &&
-            SMTP_HOST != null && !SMTP_HOST.trim().isEmpty();
+    public boolean isConfiguredEmail() {
+        return SMTP_USERNAME == null || SMTP_USERNAME.trim().isEmpty() ||
+                SMTP_PASSWORD == null || SMTP_PASSWORD.trim().isEmpty() ||
+                SMTP_HOST == null || SMTP_HOST.trim().isEmpty();
     }
 
     /**

@@ -94,23 +94,10 @@ public class User {
      * @return true if valid data, false otherwise
      */
     @JsonIgnore
-    public boolean validateForRegistration() {
-        return username != null && username.trim().length() >= 3 && username.trim().length() <= 50 &&
-                email != null && hasValidEmail(email) &&
-                username.matches("^[a-zA-Z0-9_]+$"); // Only alphanumeric and underscore
-    }
-
-    /**
-     * Validates user data for login.
-     * - Either username or email must be provided
-     * - If email is provided, it must be valid format
-     * 
-     * @return true if valid data, false otherwise
-     */
-    @JsonIgnore
-    public boolean validateForLogin() {
-        return (username != null && !username.trim().isEmpty()) ||
-                (email != null && hasValidEmail(email));
+    public boolean validatedForRegistration() {
+        return username == null || username.trim().length() < 3 || username.trim().length() > 50 ||
+                email == null || !hasValidEmail(email) ||
+                !username.matches("^[a-zA-Z0-9_]+$"); // Only alphanumeric and underscore
     }
 
     /**

@@ -116,7 +116,7 @@ public class PasswordResetServlet extends BaseServlet {
         ValidationUtil.validateStringNotEmpty(otp, "OTP code");
 
         // Validate email format
-        if (!ValidationUtil.isValidEmail(email)) {
+        if (ValidationUtil.isValidEmailFormat(email)) {
             throw new ValidationException("Invalid email format");
         }
 
@@ -171,7 +171,7 @@ public class PasswordResetServlet extends BaseServlet {
         ValidationUtil.validateStringNotEmpty(otp, "OTP code");
         ValidationUtil.validateStringNotEmpty(newPassword, "New password");
 
-        if (!ValidationUtil.isValidEmail(email)) {
+        if (ValidationUtil.isValidEmailFormat(email)) {
             throw new ValidationException("Invalid email format");
         }
 

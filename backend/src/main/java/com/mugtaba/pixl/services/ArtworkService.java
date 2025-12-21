@@ -67,7 +67,7 @@ public class ArtworkService {
      */
     public Artwork createArtwork(Artwork artwork) throws SQLException {
 
-        if (!artwork.validateData()) {
+        if (artwork.validatedData()) {
             throw new IllegalArgumentException("Invalid artwork data");
         }
 
@@ -126,7 +126,7 @@ public class ArtworkService {
      */
     public boolean updateArtwork(Artwork artwork) throws SQLException {
 
-        if (!artwork.validateData() || artwork.getId() == null) {
+        if (artwork.validatedData() || artwork.getId() == null) {
             throw new IllegalArgumentException("Invalid artwork data or missing ID");
         }
 
@@ -476,9 +476,9 @@ public class ArtworkService {
      * @return true if the user owns the artwork, false otherwise
      * @throws SQLException if there is an error accessing the database
      */
-    public boolean isArtworkOwner(Long artworkId, Long userId) throws SQLException {
+    public boolean isOwner(Long artworkId, Long userId) throws SQLException {
         Optional<Artwork> artwork = getArtworkById(artworkId);
-        return artwork.isPresent() && artwork.get().getUserId().equals(userId);
+        return artwork.isEmpty() || !artwork.get().getUserId().equals(userId);
     }
 
     /**

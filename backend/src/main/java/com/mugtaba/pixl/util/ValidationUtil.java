@@ -28,18 +28,6 @@ public class ValidationUtil {
     }
 
     /**
-     * Validates that an ID is a positive number.
-     * @param id the ID to validate
-     * @param resourceName the name of the resource for error messaging
-     * @throws ValidationException if validation fails
-     */
-    public static void validateId(Long id, String resourceName) throws ValidationException {
-        if (id == null || id <= 0) {
-            throw new ValidationException("Invalid " + resourceName + " ID");
-        }
-    }
-
-    /**
      * Validates that a string is neither null nor empty.
      * @param value the string to validate
      * @param fieldName the name of the field for error messaging
@@ -172,13 +160,13 @@ public class ValidationUtil {
      * @param email the email to validate
      * @return true if email format is valid
     */
-    public static boolean isValidEmail(String email) {
+    public static boolean isValidEmailFormat(String email) {
         if (email == null || email.trim().isEmpty()) {
-            return false;
+            return true;
         }
 
         String emailRegex = "^[\\w!#$%&'*+/=?`{|}~^-]+(?:\\.[\\w!#$%&'*+/=?`{|}~^-]+)*@(?:[a-zA-Z0-9-]+\\.)+[a-zA-Z]{2,6}$";
 
-        return email.trim().toLowerCase().matches(emailRegex);
+        return !email.trim().toLowerCase().matches(emailRegex);
     }
 }

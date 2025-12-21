@@ -75,7 +75,7 @@ public class UserService {
         // Validate input
         User tempUser = new User(username, email);
 
-        if (!tempUser.validateForRegistration()) {
+        if (tempUser.validatedForRegistration()) {
             throw new IllegalArgumentException("Invalid user data provided");
         }
 
@@ -247,44 +247,6 @@ public class UserService {
         return Optional.empty();
     }
 
-    /**
-     * Updates a user's password.
-     * @param userId the ID of the user to update
-     * @param currentPassword the current password of the user
-     * @param newPassword the new password to set
-     * @return true if the password update was successful, false otherwise
-     * @throws SQLException if a database access error occurs
-     */
-    public boolean updatePassword(Long userId, String currentPassword, String newPassword) throws SQLException {
-        if (newPassword == null || newPassword.length() < 8) {
-            throw new IllegalArgumentException("New password must be at least 8 characters long");
-        }
-
-        // Verify current password
-        Optional<User> userOptional = getUserById(userId);
-        if (userOptional.isEmpty()) {
-            return false;
-        }
-
-        User user = userOptional.get();
-        if (!PasswordUtil.verifyPassword(currentPassword, user.getPasswordHash(), user.getSalt())) {
-            throw new IllegalArgumentException("Current password is incorrect");
-        }
-
-        // Generate new salt and hash new password
-        String newSalt = PasswordUtil.generateSalt();
-        String newPasswordHash = PasswordUtil.hashPassword(newPassword, newSalt);
-
-        try (Connection conn = DatabaseUtil.getConnection();
-            PreparedStatement stmt = conn.prepareStatement(UPDATE_USER_PASSWORD)) {
-                stmt.setString(1, newPasswordHash);
-                stmt.setString(2, newSalt);
-                stmt.setTimestamp(3, Timestamp.valueOf(LocalDateTime.now()));
-                stmt.setLong(4, userId);
-
-                return stmt.executeUpdate() > 0;
-        }
-    }
 
     /**
      * Updates a user's profile information (username and email).
@@ -296,7 +258,7 @@ public class UserService {
      */
     public boolean updateProfile(Long userId, String newUsername, String newEmail) throws SQLException {
         User tempUser = new User(newUsername, newEmail);
-        if (!tempUser.validateForRegistration()) {
+        if (tempUser.validatedForRegistration()) {
             throw new IllegalArgumentException("Invalid user data provided");
         }
 
@@ -355,7 +317,7 @@ public class UserService {
 
         User user = userOpt.get();
 
-        if (!emailService.isEmailConfigured()) {
+        if (emailService.isConfiguredEmail()) {
             LogUtil.logError(
                 COMPONENT_NAME, "initiatePasswordReset",
                 "Email service not configured - can not send password reset email", null

@@ -20,6 +20,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class RateLimitFilter implements Filter {
 
     private static final String COMPONENT_NAME = "RateLimitFilter";
+    private static final String API_VERSION = "v1";
 
     // rate limit configurations
     private static final int MAX_REQUESTS_PER_MINUTE = 60;
@@ -62,7 +63,7 @@ public class RateLimitFilter implements Filter {
         }
 
         // track login attempts for brute force protection
-        if (requestUri.contains("/api/auth/login")) {
+        if (requestUri.contains("/api/" + API_VERSION + "/auth/login")) {
             trackLoginAttempt(clientIp);
         }
 

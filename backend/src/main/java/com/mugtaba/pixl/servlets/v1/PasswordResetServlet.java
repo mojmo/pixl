@@ -21,14 +21,14 @@ import java.util.Map;
  * Handles password reset requests and token validation.
  * 
  * Endpoints:
- * - POST /api/v1/password-reset/initiate - Request password reset
- * - POST /api/v1/password/verify-otp - Verify OTP
- * - POST /api/v1/password/complete - Complete password reset
+ * - POST /api/v1/password-reset/initiate - Request password reset (sends OTP)
+ * - POST /api/v1/password-reset/verify - Verify OTP code
+ * - POST /api/v1/password-reset/complete - Complete password reset
  * 
  * @version 1.0
  * @since 1.0
  */
-@WebServlet("/api/v1/auth/password-reset/*")
+@WebServlet("/api/v1/password-reset/*")
 public class PasswordResetServlet extends BaseServlet {
 
     private static final String COMPONENT_NAME = "PasswordResetServlet[v1]";
@@ -50,7 +50,7 @@ public class PasswordResetServlet extends BaseServlet {
         try {
             switch (pathInfo) {
                 case "/initiate" -> handleInitiateReset(request, response);
-                case "/verify-otp" -> handleVerifyOtp(request, response);
+                case "/verify" -> handleVerifyOtp(request, response);
                 case "/complete" -> handleCompleteReset(request, response);
                 default -> throw new ResourceNotFoundException("Password reset endpoint");
             }
@@ -87,27 +87,31 @@ public class PasswordResetServlet extends BaseServlet {
         ValidationUtil.validateStringNotEmpty(emailOrUsername, "Email or username");
         ValidationUtil.validateStringLength(emailOrUsername, "Email or username", 3, 100);
 
+        emailOrUsername = sanitize(emailOrUsername);
+        validateSqlSafe(emailOrUsername, "email/username");
+
         boolean initiated = userService.initiatePasswordReset(emailOrUsername);
 
         if (initiated) {
-            Map<String, Object> responseData = new HashMap<>();
-            responseData.put(
-                "message",
-                "If an account with that email exists, you will receive a password reset code shortly"
-            );
-
             LogUtil.logInfo(
                 COMPONENT_NAME, "handleInitiateReset",
                 String.format("Password reset initiated for: %s", emailOrUsername)
             );
-
-            sendSuccessResponse(response, "Password reset initiated", responseData);
         } else {
-            throw new DatabaseException(
-                "Password reset initiation",
-                new Exception("Failed to initiate password reset")
+            LogUtil.logWarning(
+                COMPONENT_NAME, "handleInitiateReset",
+                String.format("No account found for password reset initiation: %s", emailOrUsername)
             );
         }
+
+        Map<String, Object> responseData = new HashMap<>();
+        responseData.put(
+            "message",
+            "If an account with that email exists, you will receive a password reset code shortly"
+        );
+
+        // always return success to prevent user enumeration
+        sendSuccessResponse(response, "Password reset initiated", responseData);
     }
 
     /**
@@ -128,6 +132,9 @@ public class PasswordResetServlet extends BaseServlet {
         ValidationUtil.validateStringNotEmpty(email, "Email");
         ValidationUtil.validateStringNotEmpty(otp, "OTP code");
 
+        email = sanitize(email);
+        otp = sanitize(otp);
+
         // Validate email format
         if (ValidationUtil.isValidEmailFormat(email)) {
             throw new ValidationException("Invalid email format");
@@ -140,16 +147,16 @@ public class PasswordResetServlet extends BaseServlet {
 
         OtpValidationResult result = userService.verifyPasswordResetOtp(email, otp);
 
-        Map<String, Object> responseData = new HashMap<>();
-        responseData.put("valid", result == OtpValidationResult.VALID);
-
         switch (result) {
             case VALID -> {
-                requestData.put("message", "OTP verified successfully. You can now reset your password.");
                 LogUtil.logInfo(
                     COMPONENT_NAME, "handleVerifyOtp",
                     String.format("OTP verified successfully for: %s", email)
                 );
+                Map<String, Object> responseData = new HashMap<>();
+                responseData.put("valid", true);
+                responseData.put("message", "OTP verified successfully. You can now reset your password.");
+
                 sendSuccessResponse(response, "OTP verified", responseData);
             }
 
@@ -183,6 +190,9 @@ public class PasswordResetServlet extends BaseServlet {
         ValidationUtil.validateStringNotEmpty(email, "Email");
         ValidationUtil.validateStringNotEmpty(otp, "OTP code");
         ValidationUtil.validateStringNotEmpty(newPassword, "New password");
+
+        email = sanitize(email);
+        otp = sanitize(otp);
 
         if (ValidationUtil.isValidEmailFormat(email)) {
             throw new ValidationException("Invalid email format");

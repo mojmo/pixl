@@ -22,15 +22,17 @@ import java.time.LocalDateTime;
 public class ApiResponse<T> {
 
     @JsonProperty("success")
-    private final boolean success;
+    private boolean success;
     @JsonProperty("message")
-    private final String message;
+    private String message;
     @JsonProperty("data")
-    private final T data;
+    private T data;
     @JsonProperty("error")
     private String error;
     @JsonProperty("timestamp")
-    private final LocalDateTime timestamp;
+    private LocalDateTime timestamp;
+
+    public ApiResponse() {}
 
     /**
      * Constructs a successful API response with data and an optional message.
@@ -147,4 +149,9 @@ public class ApiResponse<T> {
 
     public LocalDateTime getTimestamp() { return timestamp; }
 
+    public void setSuccess(boolean success) { this.success = success; }
+
+    public void setMessage(String message) { this.message = message; }
+
+    public void setData(T data) { this.data = data; }
 }

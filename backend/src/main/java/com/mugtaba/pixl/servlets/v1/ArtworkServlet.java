@@ -200,7 +200,7 @@ public class ArtworkServlet extends BaseServlet {
                     COMPONENT_NAME, "doPut",
                     String.format("User %d attempted to update artwork %d", userId, artworkId)
                 );
-                throw new UnauthorizedException("You can only update your own artworks");
+                throw new ForbiddenException("You can only update your own artworks");
             }
 
             Artwork artwork = extractRequestObject(request, Artwork.class);

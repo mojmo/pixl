@@ -12,6 +12,7 @@ import java.sql.SQLException;
 public class DatabaseUtil {
 
     private static volatile HikariDataSource dataSource;
+    private static volatile boolean isTestMode = false;
     private static final Object lock = new Object();
 
     // Default configuration values
@@ -24,9 +25,7 @@ public class DatabaseUtil {
     private static final long DEFAULT_IDLE_TIMEOUT = 600000; // Close unused connections after 10min
     private static final long DEFAULT_MAX_LIFETIME = 1800000; // Recycle connections every 30min
 
-    static {
-        initializeDataSource();
-    }
+    // Remove static initializer to allow test injection before initialization
 
     /**
      * Initializes the HikariCP data source with configuration
@@ -120,6 +119,36 @@ public class DatabaseUtil {
             if (conn == null || !conn.isValid(5)) {
                 throw new SQLException("Database connection test failed");
             }
+        }
+    }
+
+    /**
+     * Sets a custom datasource for testing purposes.
+     * This allows integration tests to inject H2 or other test databases.
+     * 
+     * @param testDataSource the datasource to use for testing
+     */
+    public static void setTestDataSource(HikariDataSource testDataSource) {
+        synchronized (lock) {
+            if (dataSource != null && !dataSource.isClosed()) {
+                dataSource.close();
+            }
+            dataSource = testDataSource;
+            isTestMode = true;
+        }
+    }
+
+    /**
+     * Resets the datasource to default (production) configuration.
+     * Used by tests to clean up after test execution.
+     */
+    public static void resetDataSource() {
+        synchronized (lock) {
+            if (dataSource != null && !dataSource.isClosed()) {
+                dataSource.close();
+            }
+            dataSource = null;
+            isTestMode = false;
         }
     }
 

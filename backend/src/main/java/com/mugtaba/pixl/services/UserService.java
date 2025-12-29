@@ -97,6 +97,8 @@ public class UserService {
         String passwordHash = PasswordUtil.hashPassword(password, salt);
 
         User newUser = new User(username, email, passwordHash, salt);
+        newUser.setCreatedAt(LocalDateTime.now());
+        newUser.setUpdatedAt(LocalDateTime.now());
 
         try (Connection conn = DatabaseUtil.getConnection();
             PreparedStatement stmt = conn.prepareStatement(INSERT_USER, Statement.RETURN_GENERATED_KEYS)) {

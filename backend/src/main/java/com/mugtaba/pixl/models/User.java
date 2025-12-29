@@ -30,7 +30,7 @@ public class User {
     private LocalDateTime updatedAt;
 
     @JsonIgnore
-    private Boolean isAdmin;
+    private boolean isAdmin;
 
     /** Default constructor */
     public User() {}

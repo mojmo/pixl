@@ -36,6 +36,16 @@ public class EmailService {
      * Initializes the SMTP session for sending emails.
      */
     private void initializeSession() {
+        // Skip initialization if SMTP configuration is missing (in tests)
+        if (SMTP_HOST == null || SMTP_PORT == null || SMTP_USERNAME == null || SMTP_PASSWORD == null) {
+            LogUtil.logWarning(
+                COMPONENT_NAME, "initializeSession",
+                "SMTP configuration not found - email sending will be disabled"
+            );
+            session = null;
+            return;
+        }
+
         Properties props = new Properties();
 
         props.put("mail.smtp.auth", "true");

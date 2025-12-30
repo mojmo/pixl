@@ -110,10 +110,10 @@ public class Artwork {
 
     /**
      * Validates the artwork data to ensure all required fields are present and valid.
-     * @return true if the artwork data is valid, false otherwise.
+     * @return true if the artwork data is not valid, false otherwise.
      */
     @JsonIgnore
-    public boolean validatedData() {
+    public boolean isNotValidatedData() {
         return title == null || title.trim().isEmpty()
                 || pixelData == null || pixelData.trim().isEmpty()
                 || width <= 0 || height <= 0 || userId == null;

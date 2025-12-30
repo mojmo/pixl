@@ -67,7 +67,7 @@ public class ArtworkService {
      */
     public Artwork createArtwork(Artwork artwork) throws SQLException {
 
-        if (artwork.validatedData()) {
+        if (artwork.isNotValidatedData()) {
             throw new IllegalArgumentException("Invalid artwork data");
         }
 
@@ -126,7 +126,7 @@ public class ArtworkService {
      */
     public boolean updateArtwork(Artwork artwork) throws SQLException {
 
-        if (artwork.validatedData() || artwork.getId() == null) {
+        if (artwork.isNotValidatedData() || artwork.getId() == null) {
             throw new IllegalArgumentException("Invalid artwork data or missing ID");
         }
 

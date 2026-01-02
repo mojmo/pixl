@@ -126,6 +126,20 @@ jobs:
         cache-from: type=gha
         cache-to: type=gha,mode=max
         
+    - name: Create . env file for CI
+      run: |
+        echo "APP_ENV=${{ github.ref == 'refs/heads/main' && 'production' || 'development' }}" >> .env
+        echo "MYSQL_ROOT_PASSWORD=${{ secrets.MYSQL_ROOT_PASSWORD }}" >> .env
+        echo "DB_URL=${{ secrets.DB_URL }}" >> .env
+        echo "DB_USER=${{ secrets.DB_USER }}" >> .env
+        echo "DB_PASSWORD=${{ secrets.DB_PASSWORD }}" >> .env
+        echo "SMTP_HOST=${{ secrets.SMTP_HOST }}" >> .env
+        echo "SMTP_PORT=${{ secrets.SMTP_PORT }}" >> .env
+        echo "SMTP_USERNAME=${{ secrets.SMTP_USERNAME }}" >> .env
+        echo "SMTP_PASSWORD=${{ secrets.SMTP_PASSWORD }}" >> .env
+        echo "FROM_EMAIL=${{ secrets.FROM_EMAIL }}" >> .env
+        echo "FROM_NAME=${{ secrets.FROM_NAME }}" >> .env
+
     - name: Test Docker Compose
       run: |
         docker-compose config

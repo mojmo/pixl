@@ -125,7 +125,10 @@ jobs:
         tags: pixl-frontend:${{ github.sha }}
         cache-from: type=gha
         cache-to: type=gha,mode=max
-        
+    
+    - name: Docker Setup Compose
+      uses: docker/setup-compose-action@v1.2.0
+
     - name: Test Docker Compose
       run: |
         docker-compose config

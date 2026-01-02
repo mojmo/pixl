@@ -126,8 +126,11 @@ jobs:
         cache-from: type=gha
         cache-to: type=gha,mode=max
     
-    - name: Docker Setup Compose
-      uses: docker/setup-compose-action@v1.2.0
+    - name: Set up Docker Compose
+      run: |
+        sudo curl -L "https://github.com/docker/compose/releases/latest/download/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose
+        sudo chmod +x /usr/local/bin/docker-compose
+        docker-compose --version
 
     - name: Test Docker Compose
       run: |
